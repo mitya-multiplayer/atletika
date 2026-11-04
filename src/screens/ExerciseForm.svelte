@@ -44,7 +44,7 @@
     back={{ to: back, label: backLabel }}
     title={exerciseId ? 'Упражнение' : 'Новое упражнение'}
     art={bars}
-    artFit="contain"
+    artLayout="behind"
   />
 
   {#if notFound}

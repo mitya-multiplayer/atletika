@@ -1,11 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
-
-async function loadDemo(page: Page) {
-  await page.goto('./#/kit');
-  await page.getByRole('button', { name: 'Загрузить демо-данные' }).click();
-  await page.getByRole('button', { name: 'Понятно' }).click();
-}
+import { expect, test } from '@playwright/test';
+import { loadDemo, openDemoDay1 } from './helpers';
 
 test('home shows the brand and an empty program', async ({ page }) => {
   await page.goto('./');
@@ -84,8 +79,7 @@ test('an exercise used in a day cannot be deleted', async ({ page }) => {
 
 test('exercises can be reordered with the drag handle', async ({ page }) => {
   await loadDemo(page);
-  await page.goto('./#/days');
-  await page.getByRole('link', { name: /день 1/i }).first().click();
+  await openDemoDay1(page);
   const rows = page.getByRole('listitem');
   await expect(rows.first()).toContainText(/жим лёжа/i);
 
@@ -108,7 +102,7 @@ test('exercises can be reordered with the drag handle', async ({ page }) => {
   await expect(rows.nth(1)).toContainText(/жим лёжа/i);
 });
 
-for (const path of ['./', './#/program', './#/days', './#/exercises']) {
+for (const path of ['./', './#/program', './#/days', './#/exercises', './#/exercises/new']) {
   test(`no accessibility violations on ${path}`, async ({ page }) => {
     await loadDemo(page);
     await page.goto(path);

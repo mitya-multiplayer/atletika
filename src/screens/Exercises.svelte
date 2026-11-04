@@ -35,7 +35,7 @@
 </script>
 
 <main class="screen">
-  <ScreenHeader back={{ to: '/program', label: 'Программа' }} title="Упражнения" art={bars} artFit="contain">
+  <ScreenHeader back={{ to: '/program', label: 'Программа' }} title="Упражнения" art={bars} artLayout="behind">
     {#snippet aside()}
       <div class="io">
         <button type="button" onclick={() => notReady('Импорт')}><Icon name="import" size={22} /><span>Импорт</span></button>

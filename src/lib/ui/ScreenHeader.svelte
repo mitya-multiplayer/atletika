@@ -10,13 +10,18 @@
     kicker?: string;
     back?: { to: string; label: string };
     art?: string;
-    /** 'contain' for wide illustrations that cropping would make unrecognisable. */
-    artFit?: 'cover' | 'contain';
+    /**
+     * 'beside': cropped to fill the right side of the header, partly behind the title.
+     *   For tall illustrations (runner, gears).
+     * 'behind': on the right at its natural proportions, under the title, ending just below it
+     *   and darkened at the bottom for legibility. For wide illustrations (push-up bars).
+     */
+    artLayout?: 'beside' | 'behind';
     size?: 'hero' | 'title';
     aside?: Snippet;
   };
 
-  let { title, kicker, back, art, artFit = 'cover', size = 'title', aside }: Props = $props();
+  let { title, kicker, back, art, artLayout = 'beside', size = 'title', aside }: Props = $props();
 </script>
 
 <header class="header" class:with-art={art}>
@@ -27,9 +32,9 @@
     </div>
   {/if}
 
-  <div class="hero">
+  <div class="hero {art ? artLayout : ''}">
     {#if art}
-      <div class="art {artFit}" aria-hidden="true">
+      <div class="art" aria-hidden="true">
         <AccentStripe class="art-stripe" />
         <img src={art} alt="" />
       </div>
@@ -124,20 +129,6 @@
     object-position: right center;
   }
 
-  .art.contain {
-    width: 78%;
-  }
-
-  /* Top-aligned so the title below does not sit on the illustration's cream floor. */
-  .art.contain img {
-    object-fit: contain;
-    object-position: right top;
-  }
-
-  .with-art:has(.contain) .hero {
-    min-height: 210px;
-  }
-
   .art :global(.art-stripe) {
     position: absolute;
     inset: 0;
@@ -151,5 +142,48 @@
     bottom: -6px;
     width: 70%;
     height: 90px;
+  }
+
+  /* ---- artLayout="behind": the illustration sits on the right, under the title ----
+     Art and title share one grid cell, so the header is as tall as the taller of the two. */
+  .with-art .hero.behind {
+    display: grid;
+    align-items: end;
+    min-height: 0;
+  }
+
+  .hero.behind > * {
+    grid-area: 1 / 1;
+  }
+
+  /* The illustration drops below the title; the padding keeps it clear of the content below.
+     (Padding, not margin: a margin would collapse with the header's own bottom margin.) */
+  .hero.behind {
+    --art-drop: 10px;
+    padding-bottom: var(--art-drop);
+  }
+
+  .hero.behind .art {
+    position: relative;
+    top: var(--art-drop);
+    right: auto;
+    bottom: auto;
+    justify-self: end;
+    width: 78%;
+    margin-right: calc(-1 * var(--gutter));
+  }
+
+  /* Natural proportions: neither cropped nor enlarged to fill the header. */
+  .hero.behind .art img {
+    height: auto;
+    object-fit: fill;
+  }
+
+  /* Darkens the lower part so cream title letters stay readable over the cream floor. */
+  .hero.behind .art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgb(7 7 6 / 0) 30%, rgb(7 7 6 / 0.82) 100%);
   }
 </style>

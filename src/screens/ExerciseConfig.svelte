@@ -45,7 +45,7 @@
     kicker="Настройка упражнения"
     title={exercise?.name ?? ''}
     art={bars}
-    artFit="contain"
+    artLayout="behind"
   />
 
   {#if notFound}

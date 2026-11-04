@@ -29,7 +29,7 @@
     back={{ to: `/days/${dayId}`, label: $day ? dayTitle(dayNumber($day)) : 'День' }}
     title="Выбери упражнение"
     art={bars}
-    artFit="contain"
+    artLayout="behind"
   />
 
   <label class="search">
