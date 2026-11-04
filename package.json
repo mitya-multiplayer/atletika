@@ -1,0 +1,37 @@
+{
+  "name": "atletika",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check:fonts": "node scripts/check-fonts.mjs",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "assets": "python -I scripts/make-illustrations.py && node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/oswald": "^5.3.0",
+    "@fontsource-variable/roboto-condensed": "^5.3.0",
+    "dexie": "^4.4.7",
+    "sortablejs": "^1.15.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/sortablejs": "^1.15.9",
+    "fake-indexeddb": "^6.2.7",
+    "fontkit": "^2.0.4",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,143 @@
+/* Design tokens. Colors are sampled from the reference screens (docs/DECISIONS.md);
+   type follows docs/TYPOGRAPHY.md. */
+:root {
+  --c-bg: #070706;
+  --c-red: #f91621;
+  --c-cream: #f7ede0;
+  --c-cream-muted: #e5dccf;
+  --c-grey: #484643;
+  --c-ink: #070706;
+  --c-text-muted: #a8a196;
+  --c-placeholder: #857e74;
+  --c-panel-line: #3a3936;
+
+  --font-display: 'Oswald Variable', sans-serif;
+  --font-ui: 'Roboto Condensed Variable', sans-serif;
+
+  --fs-hero: clamp(56px, 19vw, 104px);
+  --fs-title: clamp(40px, 12.5vw, 64px);
+  --fs-section: 28px;
+  --fs-button: 24px;
+  --fs-nav: 22px;
+  --fs-name: 18px;
+  --fs-body: 17px;
+  --fs-label: 15px;
+  --fs-small: 13px;
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --gutter: 18px;
+  --gap: 10px;
+  --tap: 44px;
+  --button-h: 60px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--c-bg);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--c-bg);
+  color: var(--c-cream);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+p,
+ul {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--c-red);
+  outline-offset: 2px;
+}
+
+/* Oswald display style: screen titles, day titles, buttons, short labels. */
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.screen {
+  position: relative;
+  max-width: 520px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 12px) var(--gutter) calc(var(--safe-bottom) + 28px);
+  overflow-x: clip;
+}
+
+.stack {
+  display: grid;
+  gap: var(--gap);
+}
+
+.section-title {
+  margin: 28px 0 12px;
+  font-size: var(--fs-section);
+}
+
+.empty {
+  padding: 24px 4px;
+  color: var(--c-text-muted);
+}
+
+.actions-bottom {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
