@@ -1,6 +1,6 @@
 # Real-device checklist
 
-Automated tests run in desktop WebKit and Chromium. Before calling a build ready, check these on a real iPhone (Safari) and a real Android phone (Chrome). The app must be served over **HTTPS** (a preview deploy), because installation and offline mode do not work over plain `http://` on a local network address.
+Automated tests run in desktop WebKit and Chromium. Before calling a build ready, check these on a real iPhone (Safari) and a real Android phone (Chrome). Use the GitHub Pages site: the app must be served over **HTTPS**, because installation and offline mode do not work over plain `http://` on a local network address.
 
 ## Install
 - [ ] iPhone: Safari → Share → «На экран Домой». The icon and the name «Атлетика» look right.

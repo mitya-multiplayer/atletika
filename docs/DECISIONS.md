@@ -14,6 +14,8 @@ Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict
 ### Platform
 - Static web app, no backend. Data is stored on the device in IndexedDB.
 - Installable to the home screen on iPhone and Android (PWA). Both platforms are targets.
+- Hosted on GitHub Pages from a public repository.
+- Every new feature ships with an extensive set of tests (unit, persistence, end-to-end, accessibility). See `CLAUDE.md`.
 - Fonts are bundled with the app (works offline). See `TYPOGRAPHY.md`: Oswald for display text and buttons, Roboto Condensed for interface text.
 
 ### Reference screen corrections
