@@ -11,8 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Атлетика',
-        short_name: 'Атлетика',
+        // Shown under the home-screen icon on Android; upper case like the iPhone title in index.html.
+        name: 'АТЛЕТИКА',
+        short_name: 'АТЛЕТИКА',
         description: 'Личные тренировочные программы',
         lang: 'ru',
         start_url: './',

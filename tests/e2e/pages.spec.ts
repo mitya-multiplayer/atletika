@@ -41,7 +41,10 @@ test('manifest and icons resolve for installing to the home screen', async ({ pa
   expect(response.status()).toBe(200);
   const manifest = await response.json();
 
-  expect(manifest.name).toBe('Атлетика');
+  // The name under the home-screen icon is upper case on both phones.
+  expect(manifest.name).toBe('АТЛЕТИКА');
+  expect(manifest.short_name).toBe('АТЛЕТИКА');
+  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'АТЛЕТИКА');
   expect(manifest.lang).toBe('ru');
   expect(manifest.display).toBe('standalone');
   expect(new URL(manifest.start_url, manifestUrl).href).toBe(baseURL);
