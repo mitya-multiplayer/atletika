@@ -2,6 +2,35 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-05
+
+### Active workout
+Answers to the open questions in spec 4.10:
+1. **Finishing a set** («ЗАВЕРШИТЬ ПОДХОД») starts that set's rest timer automatically.
+2. **When the rest timer reaches 0:00**, the next set opens automatically. The rest screen keeps the reference controls: −30 s, +30 s, pause, and «ЗАВЕРШИТЬ ОТДЫХ» to end rest early.
+3. **No sound or vibration** at the end of rest.
+4. **«ПРОПУСТИТЬ УПРАЖНЕНИЕ» stays.** Sets not done are recorded as `-`, e.g. `-/-/-` for a skipped 3-set exercise.
+5. **Leaving does not pause or cancel.** «← ГЛАВНАЯ» leaves without confirmation; the workout is resumed later from Home («ПРОДОЛЖИТЬ ТРЕНИРОВКУ»). A running rest timer keeps counting while the user is away.
+6. **A summary screen** ends the workout, with a «КОПИРОВАТЬ» button that copies the result as plain text for sending in a message.
+7. **The next day** is the one after the last completed workout's day, wrapping to Day 1 (was provisional).
+
+Follow-ons applied in the draft:
+- The final set of the whole workout has no rest: the summary opens right away. A set with 0:00 rest goes straight to the next set.
+- Skipping an exercise goes straight to the next exercise, without rest.
+- One workout can be in progress at a time. Home shows its day and «ПРОДОЛЖИТЬ ТРЕНИРОВКУ» until it is finished.
+- A day without exercises cannot be started; Home says so.
+
+### History (draft, following REF-10)
+- Lists finished workouts only, newest first; a workout in progress is not listed.
+- The newest is a card («ПОСЛЕДНЯЯ ТРЕНИРОВКА»: day name, day number, date, duration, «ПОСМОТРЕТЬ ТРЕНИРОВКУ»); the rest form the list «ПРЕДЫДУЩИЕ ТРЕНИРОВКИ».
+- A workout's date is the day it started.
+- Opening a record shows the workout summary with «КОПИРОВАТЬ» (the spec's history copy capability); back returns to «История».
+
+## 2026-11-04
+
+### Product
+- **Repetitions × sets.** Sets and repetitions are always written repetitions first: «8 × 3» is 8 repetitions in each of 3 sets. Reference screens showing «3 × 8–10» (sets first) are outdated.
+
 ## 2026-11-03
 
 ### Product
@@ -43,9 +72,10 @@ These are placeholders, isolated in code, until the product decision is made:
 
 | Topic | Draft behavior | Where |
 |---|---|---|
-| Next training day | The day after the last completed one, wrapping to Day 1; Day 1 when there is no history | `src/lib/domain/progression.ts` |
-| New exercise in a day | 3 sets × 10 reps, 1:30 rest each | `src/lib/domain/defaults.ts` |
+| New exercise in a day | 10 reps × 3 sets, 1:30 rest each | `src/lib/domain/defaults.ts` |
 | Rest stepper | ±15 seconds | `src/lib/domain/defaults.ts` |
 | Exercise selector | Single select: tapping an exercise adds it and opens its set configuration | `src/screens/ExerciseSelect.svelte` |
 | Deleting a library exercise used in days | Blocked, with a message naming the days | `src/lib/db/repo.ts` |
-| Active workout, series, history, settings | Placeholder screens | `src/screens/` |
+| Abandoning a workout in progress | Not possible; skipping the remaining exercises finishes it | `src/lib/domain/workout.ts` |
+| Deleting or editing history records | Not possible (spec 4.11 OPEN) | `src/screens/History.svelte` |
+| Series, settings | Placeholder screens | `src/screens/` |

@@ -32,6 +32,8 @@
   --button-h: 60px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Space above a screen's content; header pictures reach up through it to the top edge. */
+  --screen-pad-top: calc(var(--safe-top) + 12px);
 }
 
 *,
@@ -108,7 +110,7 @@ ul {
   max-width: 520px;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: calc(var(--safe-top) + 12px) var(--gutter) calc(var(--safe-bottom) + 28px);
+  padding: var(--screen-pad-top) var(--gutter) calc(var(--safe-bottom) + 28px);
   overflow-x: clip;
 }
 

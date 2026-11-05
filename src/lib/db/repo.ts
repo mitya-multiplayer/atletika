@@ -2,7 +2,8 @@ import { liveQuery } from 'dexie';
 import { sortByName, type ExerciseInput } from '../domain/exercises';
 import { moveItem } from '../domain/order';
 import { defaultSets } from '../domain/sets';
-import type { Exercise, Id, SetConfig, TrainingDay } from '../domain/types';
+import type { Exercise, Id, SetConfig, TrainingDay, Workout } from '../domain/types';
+import { createWorkout } from '../domain/workout';
 import { db } from './db';
 
 /** Random id that also works outside secure contexts (crypto.randomUUID does not). */
@@ -124,3 +125,52 @@ export async function getExercise(id: Id): Promise<Exercise | undefined> {
 export async function getDay(id: Id): Promise<TrainingDay | undefined> {
   return db.days.get(id);
 }
+
+// ---- Workouts (docs/DECISIONS.md, 2026-11-05) ----
+
+/** The workout in progress, if any. There is at most one. */
+export async function getActiveWorkout(): Promise<Workout | undefined> {
+  return db.workouts.filter((workout) => workout.finishedAt === null).first();
+}
+
+/** The most recently finished workout. Unfinished ones have no finishedAt key and are not in the index. */
+export async function getLastFinishedWorkout(): Promise<Workout | undefined> {
+  return db.workouts.orderBy('finishedAt').last();
+}
+
+/** What Home needs: the workout in progress and the day of the last finished one. */
+export const workoutStatusQuery = () =>
+  liveQuery(async () => ({
+    active: (await getActiveWorkout()) ?? null,
+    lastFinishedDayId: (await getLastFinishedWorkout())?.dayId ?? null,
+  }));
+
+export async function getWorkout(id: Id): Promise<Workout | undefined> {
+  return db.workouts.get(id);
+}
+
+/**
+ * Resumes the workout in progress, or starts one for `dayId` from a snapshot of the day.
+ * Returns null when the day has no exercises.
+ */
+export async function startOrResumeWorkout(dayId: Id, now = Date.now()): Promise<Workout | null> {
+  return db.transaction('rw', db.workouts, db.days, db.exercises, async () => {
+    const active = await getActiveWorkout();
+    if (active) return active;
+    const day = await db.days.get(dayId);
+    if (!day) throw new Error(`Training day ${dayId} not found`);
+    const exercises = await db.exercises.bulkGet(day.items.map((item) => item.exerciseId));
+    const names = new Map(exercises.filter((e) => !!e).map((e) => [e.id, e.name]));
+    const workout = createWorkout(day, names, newId(), now);
+    if (workout) await db.workouts.add(workout);
+    return workout;
+  });
+}
+
+/** Stores the workout's new state. Pass a plain object ($state.snapshot), not a Svelte proxy. */
+export async function saveWorkout(workout: Workout): Promise<void> {
+  await db.workouts.put(workout);
+}
+
+/** History: finished workouts, newest first. A workout in progress has no finishedAt key, so it is left out. */
+export const finishedWorkoutsQuery = () => liveQuery(() => db.workouts.orderBy('finishedAt').reverse().toArray());

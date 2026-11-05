@@ -82,7 +82,9 @@
     min-width: 56px;
     padding: 4px;
     border: 0;
-    background: none;
+    border-radius: var(--radius-s);
+    /* Dark backing: these sit over the header illustration. */
+    background: rgb(7 7 6 / 0.72);
     color: var(--c-cream);
     font-size: 12px;
     font-weight: 500;

@@ -27,9 +27,9 @@
 {/snippet}
 
 {#if to}
-  <a class="btn {variant}" href={'#' + to}>{@render content()}</a>
+  <a class="btn {variant}" class:with-trailing={trailing} href={'#' + to}>{@render content()}</a>
 {:else}
-  <button class="btn {variant}" {type} {disabled} {onclick}>{@render content()}</button>
+  <button class="btn {variant}" class:with-trailing={trailing} {type} {disabled} {onclick}>{@render content()}</button>
 {/if}
 
 <style>
@@ -40,7 +40,7 @@
     justify-content: center;
     width: 100%;
     min-height: var(--button-h);
-    padding: 8px 48px;
+    padding: 8px 20px;
     border: 2px solid transparent;
     border-radius: var(--radius-m);
     font-family: var(--font-display);
@@ -56,6 +56,11 @@
     display: inline-flex;
     align-items: center;
     gap: 14px;
+  }
+
+  /* Room for the trailing icon, which is absolutely positioned on the right. */
+  .with-trailing {
+    padding-inline: 48px;
   }
 
   .primary {

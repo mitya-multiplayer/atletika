@@ -14,8 +14,9 @@
   import SetChip from '../lib/ui/SetChip.svelte';
   import Stepper from '../lib/ui/Stepper.svelte';
   import TextField from '../lib/ui/TextField.svelte';
-  import { formatRest } from '../lib/domain/format';
+  import { formatRest, setsSummary } from '../lib/domain/format';
 
+  const SAMPLE_SETS = Array.from({ length: 3 }, () => ({ reps: 15, restSec: 90 }));
   const ALPHABET_UPPER = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
   const ALPHABET_LOWER = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
   const SYMBOLS = '0123456789 «» — – … № % × · ? !';
@@ -92,8 +93,10 @@
       </ListRow>
       <ListRow handle actionsLayout="column">
         <span class="ex-name">Отжимания на упорах</span>
-        <span>3 × 15</span>
-        <span class="chips"><SetChip index={1} reps={15} /><SetChip index={2} reps={15} /><SetChip index={3} reps={15} /></span>
+        <span>{setsSummary(SAMPLE_SETS)}</span>
+        <span class="chips">
+          {#each SAMPLE_SETS as set, i (i)}<SetChip index={i + 1} reps={set.reps} />{/each}
+        </span>
         {#snippet actions()}
           <IconButton icon="edit" label="Настроить" />
           <IconButton icon="delete" label="Убрать" />

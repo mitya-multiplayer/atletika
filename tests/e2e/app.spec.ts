@@ -50,7 +50,23 @@ test('build a training day from scratch', async ({ page }) => {
   await expect(page.getByText('11 · 10 · 10 · 10')).toBeVisible();
   await page.goto('./');
   await expect(page.getByText(/жимовые/i)).toBeVisible();
-  await expect(page.getByRole('link', { name: /начать тренировку/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /начать тренировку/i })).toBeVisible();
+});
+
+test('sets are shown as repetitions × sets everywhere', async ({ page }) => {
+  await loadDemo(page);
+  await openDemoDay1(page);
+  // Demo Day 1: Жим лёжа is 3 sets of 8, Подтягивания 3 sets of 10.
+  const rows = page.getByRole('listitem');
+  await expect(rows.first()).toContainText('8 × 3');
+  await expect(rows.first()).not.toContainText('3 × 8');
+  await expect(rows.nth(1)).toContainText('10 × 3');
+
+  // Adding a set changes the second number.
+  await page.getByRole('button', { name: 'Настроить Жим лёжа' }).click();
+  await page.getByRole('button', { name: /добавить подход/i }).click();
+  await page.getByRole('button', { name: /сохранить/i }).click();
+  await expect(rows.first()).toContainText('8 × 4');
 });
 
 test('deleting a day asks first and renumbers the rest', async ({ page }) => {

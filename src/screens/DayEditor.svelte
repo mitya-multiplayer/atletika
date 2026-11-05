@@ -93,7 +93,9 @@
   {:else if $day === null || !$day}
     <ScreenHeader back={{ to: '/days', label: 'Дни' }} title="День не найден" />
   {:else}
-    <ScreenHeader back={{ to: '/days', label: 'Дни' }} title={title} size="hero" art={runner} />
+    <!-- The runner reaches below the header to end just below the day-name field:
+         header margin 18 + field 56 + 12. -->
+    <ScreenHeader back={{ to: '/days', label: 'Дни' }} title={title} size="hero" art={runner} artDrop={86} />
 
     <label class="name-field">
       <span class="visually-hidden">Название дня</span>
@@ -147,7 +149,10 @@
 </main>
 
 <style>
+  /* Above the header illustration, which reaches down behind this field. */
   .name-field {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 10px;

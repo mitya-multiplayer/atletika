@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchesQuery, sortByName, validateExercise } from '../../src/lib/domain/exercises';
-import { dayNumber, formatRest, formatToday, setsSummary } from '../../src/lib/domain/format';
+import { dayNumber, formatDateParts, formatRest, formatToday, setsSummary } from '../../src/lib/domain/format';
 import { moveItem } from '../../src/lib/domain/order';
 import { nextDay } from '../../src/lib/domain/progression';
 import { addSet, defaultSets, removeSet, updateSet } from '../../src/lib/domain/sets';
@@ -38,14 +38,50 @@ describe('format', () => {
     expect(formatRest(180)).toBe('3:00');
   });
 
-  it('summarises sets', () => {
-    expect(setsSummary([{ reps: 10, restSec: 90 }, { reps: 10, restSec: 60 }])).toBe('2 × 10');
-    expect(setsSummary([{ reps: 10, restSec: 90 }, { reps: 8, restSec: 90 }])).toBe('10 · 8');
-    expect(setsSummary([])).toBe('');
+  describe('setsSummary: repetitions × sets', () => {
+    const sets = (...reps: number[]) => reps.map((r) => ({ reps: r, restSec: 90 }));
+
+    it('puts repetitions first and the number of sets second', () => {
+      expect(setsSummary(sets(8, 8, 8))).toBe('8 × 3');
+      expect(setsSummary(sets(15, 15, 15, 15))).toBe('15 × 4');
+    });
+
+    it('does not let different rest times change the summary', () => {
+      expect(setsSummary([{ reps: 10, restSec: 90 }, { reps: 10, restSec: 60 }])).toBe('10 × 2');
+    });
+
+    it('shows a single set as repetitions × 1', () => {
+      expect(setsSummary(sets(12))).toBe('12 × 1');
+    });
+
+    it('is not symmetric: 3 sets of 8 differs from 8 sets of 3', () => {
+      expect(setsSummary(sets(8, 8, 8))).not.toBe(setsSummary(sets(3, 3, 3, 3, 3, 3, 3, 3)));
+      expect(setsSummary(sets(3, 3, 3, 3, 3, 3, 3, 3))).toBe('3 × 8');
+    });
+
+    it('lists repetitions per set, in order, when they differ', () => {
+      expect(setsSummary(sets(10, 8))).toBe('10 · 8');
+      expect(setsSummary(sets(12, 10, 8, 6))).toBe('12 · 10 · 8 · 6');
+    });
+
+    it('is empty without sets', () => {
+      expect(setsSummary([])).toBe('');
+    });
   });
 
   it('numbers days from their position', () => {
     expect(dayNumber({ position: 0 })).toBe(1);
+  });
+
+  it('splits a workout date into parts for History', () => {
+    expect(formatDateParts(new Date(2026, 9, 18, 7, 5).getTime())).toEqual({
+      day: '18',
+      month: 'ОКТ',
+      year: '2026',
+      full: '18 ОКТ 2026',
+    });
+    expect(formatDateParts(new Date(2027, 0, 1).getTime()).full).toBe('1 ЯНВ 2027');
+    expect(formatDateParts(new Date(2026, 4, 9).getTime()).month).toBe('МАЙ');
   });
 
   it('formats the date in Russian', () => {

@@ -15,11 +15,13 @@
   import Series from './screens/Series.svelte';
   import Settings from './screens/Settings.svelte';
   import Workout from './screens/Workout.svelte';
+  import WorkoutSummary from './screens/WorkoutSummary.svelte';
 
   // Navigation map: docs/ATLETIKA_PRODUCT_SPEC.md, section 6. Order matters.
   const routes: [string, Component<any>][] = [
     ['/', Home],
     ['/workout', Workout],
+    ['/workout/:workoutId/summary', WorkoutSummary],
     ['/history', History],
     ['/settings', Settings],
     ['/program', Program],

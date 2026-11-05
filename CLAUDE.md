@@ -22,7 +22,8 @@ Node lives in `C:\Program Files\nodejs` (add it to PATH in a fresh shell).
 - `npm test`: Vitest unit tests (domain logic and the Dexie repository on fake-indexeddb)
 - `npm run test:e2e`: Playwright on WebKit (iPhone) and Chromium (Android); builds first
 - `npm run check:fonts`: fails if a bundled font lacks a required Cyrillic glyph
-- `npm run assets`: regenerate illustrations (from `docs/assets/visual_assets`) and home-screen icons
+- `npm run assets`: regenerate illustrations (from `docs/assets/`) and home-screen icons
+- `python -I scripts/trace-icons.py`: re-trace the supplied history (chart) and settings (gear) icons into SVG paths; paste the output into `src/lib/ui/Icon.svelte`
 
 ## Testing: required for every new feature
 A feature is not done until it ships with an extensive set of tests. Add all of these that apply:
@@ -36,9 +37,16 @@ A feature is not done until it ships with an extensive set of tests. Add all of 
 Playwright notes:
 - E2E tests run against the production build served from `/ATLETIKA/`, like GitHub Pages. Navigate with relative URLs (`page.goto('./#/days')`); a leading `/` escapes the subpath. Hosting checks (subpath, manifest, service worker, offline, persistence) live in `tests/e2e/pages.spec.ts`.
 - Prefer role and label locators (`getByRole`, `getByLabel`), matched case-insensitively (`/день 1/i`): display text is uppercased by CSS.
+- Timers (rest between sets) are tested with Playwright's fake clock: `page.clock.install()` before the first `goto`, then `page.clock.fastForward(ms)`. See `tests/e2e/workout.spec.ts`. The workout timer stores timestamps, so it is correct after the app was closed.
 - Wait on app state, never on fixed timing. Example: the drag test waits for SortableJS's `.sortable-fallback` and `.sortable-ghost` classes before releasing the mouse.
 
 Before calling work finished, run and report all of: `npm run check`, `npm test`, `npm run check:fonts`, `npm run test:e2e`.
+
+## Design changes
+- Do not render PNG screenshots or mockups by default; only when the user asks for them. Check visual changes in the running app (the dev server in the Browser pane) instead. When PNGs are requested, save them in `docs/mockups/`.
+
+## UI conventions
+- **Repetitions × sets**, always in this order: «8 × 3» means 8 repetitions in each of 3 sets. Build this text only with `setsSummary()` in `src/lib/domain/format.ts`, never by hand. When the sets differ, it lists each set's repetitions in order: «10 · 8 · 6». Write it the same way in docs and comments ("8 reps × 3 sets"). Reference screens showing «3 × 8–10» are outdated.
 
 ## Layout
 - `src/lib/domain/`: pure logic, no browser APIs. Put product rules here.
@@ -46,7 +54,7 @@ Before calling work finished, run and report all of: `npm run check`, `npm test`
 - `src/lib/ui/`: shared components; `src/screens/Kit.svelte` (route `#/kit`) shows them all. Add new shared components there too.
 - `src/screens/`: one component per route; routes are listed in `src/App.svelte`.
 - Design tokens are CSS custom properties in `src/app.css`.
-- `docs/assets/`: original reference screens and the visual asset pack. Never edit them; derived files go to `src/assets/` via `scripts/`.
+- `docs/assets/`: original reference screens, the visual asset pack, and later artwork from the user in dated folders (`supplied_YYYY-MM-DD/`). Never edit them; derived files go to `src/assets/` via `scripts/`.
 
 ## Gotchas
 - Pass `$state.snapshot(value)` to Dexie: IndexedDB cannot store Svelte proxies.

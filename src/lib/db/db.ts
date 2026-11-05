@@ -1,9 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Exercise, TrainingDay } from '../domain/types';
+import type { Exercise, TrainingDay, Workout } from '../domain/types';
 
 export class AtletikaDB extends Dexie {
   exercises!: EntityTable<Exercise, 'id'>;
   days!: EntityTable<TrainingDay, 'id'>;
+  workouts!: EntityTable<Workout, 'id'>;
 
   constructor(name = 'atletika') {
     super(name);
@@ -11,6 +12,10 @@ export class AtletikaDB extends Dexie {
     this.version(1).stores({
       exercises: 'id, name',
       days: 'id, position',
+    });
+    // v2: workouts in progress and finished (history). Existing tables are unchanged.
+    this.version(2).stores({
+      workouts: 'id, startedAt, finishedAt',
     });
   }
 }
