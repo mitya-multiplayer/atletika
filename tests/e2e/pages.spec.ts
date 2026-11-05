@@ -101,3 +101,23 @@ test('data survives closing and reopening the app', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByText(/ноги/i)).toBeVisible();
 });
+
+test('every home-screen icon has the pixel size it claims', async ({ page }) => {
+  await page.goto('./');
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
+  const manifest = await (await page.request.get(new URL(manifestHref!, page.url()).href)).json();
+  const appleHref = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  const expected: [string, number][] = [
+    ...manifest.icons.map((icon: { src: string; sizes: string }) => [icon.src, Number(icon.sizes.split('x')[0])]),
+    [appleHref!, 180],
+  ];
+  for (const [src, size] of expected) {
+    const natural = await page.evaluate(async (url) => {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return [img.naturalWidth, img.naturalHeight];
+    }, src);
+    expect(natural, src).toEqual([size, size]);
+  }
+});
