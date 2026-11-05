@@ -4,7 +4,7 @@ Mobile workout-program app: static PWA (Vite + Svelte 5 + TypeScript), data on t
 
 ## Hosting
 - Hosted on **GitHub Pages**. The repository is **public**.
-- `.github/workflows/ci.yml` runs every check on each push and pull request; pushes to `main` deploy to Pages only after all checks pass. One-time repository setup: Settings → Pages → Source: GitHub Actions.
+- `.github/workflows/ci.yml` runs every check on each push and pull request; pushes to `master` deploy to Pages only after all checks pass. One-time repository setup: Settings → Pages → Source: GitHub Actions.
 - Pages serves the app from a subpath (`https://<user>.github.io/<repo>/`) with no server rewrites. Keep `base: './'` in `vite.config.ts` and hash routing (`#/days/…`); never switch to path-based routes or absolute asset URLs.
 - Everything committed is world-readable: no secrets, tokens, or real personal data, including in test fixtures and demo data.
 - Users get new versions through the service worker (`registerType: 'autoUpdate'`). Data stays on their device, so a schema change must ship as a new Dexie `version()` that migrates existing data.

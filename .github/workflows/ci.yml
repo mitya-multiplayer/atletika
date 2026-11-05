@@ -1,12 +1,12 @@
 name: CI
 
-# Checks every push and pull request. Pushes to main also deploy to GitHub Pages,
+# Checks every push and pull request. Pushes to master also deploy to GitHub Pages,
 # but only after all checks pass. One-time setup in the repository:
 # Settings → Pages → Build and deployment → Source: GitHub Actions.
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
@@ -36,18 +36,18 @@ jobs:
           retention-days: 7
 
       - name: Build for Pages
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         run: npm run build
       - uses: actions/configure-pages@v6
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v5
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write
