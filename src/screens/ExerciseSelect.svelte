@@ -1,8 +1,9 @@
 <script lang="ts">
   import bars from '../assets/illustrations/pushup-bars.webp';
-  import { addExerciseToDay, dayQuery, exercisesQuery } from '../lib/db/repo';
+  import { addExerciseToDay, addExerciseToSeries, dayQuery, exercisesQuery } from '../lib/db/repo';
   import { matchesQuery } from '../lib/domain/exercises';
   import { dayNumber, dayTitle } from '../lib/domain/format';
+  import { seriesNumber, seriesTitle } from '../lib/domain/series';
   import type { Exercise } from '../lib/domain/types';
   import { navigate } from '../lib/router.svelte';
   import Button from '../lib/ui/Button.svelte';
@@ -10,15 +11,28 @@
   import ListRow from '../lib/ui/ListRow.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
 
-  let { dayId }: { dayId: string } = $props();
+  let { dayId, query }: { dayId: string; query: URLSearchParams } = $props();
 
   const day = $derived(dayQuery(dayId));
   const exercises = exercisesQuery();
   let search = $state('');
   const visible = $derived(($exercises ?? []).filter((exercise) => matchesQuery(exercise.name, search)));
 
+  // ?series=<itemId>: picking adds the exercise to that series and returns to its editor.
+  const seriesId = $derived(query.get('series'));
+  const back = $derived(
+    seriesId
+      ? { to: `/days/${dayId}/series/${seriesId}`, label: $day ? seriesTitle(seriesNumber($day.items, seriesId)) : 'Серия' }
+      : { to: `/days/${dayId}`, label: $day ? dayTitle(dayNumber($day)) : 'День' },
+  );
+
   // PROVISIONAL single select: add the exercise, then go straight to its sets.
   async function pick(exercise: Exercise) {
+    if (seriesId) {
+      await addExerciseToSeries(dayId, seriesId, exercise.id);
+      navigate(`/days/${dayId}/series/${seriesId}`, { replace: true });
+      return;
+    }
     const itemId = await addExerciseToDay(dayId, exercise.id);
     navigate(`/days/${dayId}/items/${itemId}`, { replace: true });
   }
@@ -26,7 +40,7 @@
 
 <main class="screen">
   <ScreenHeader
-    back={{ to: `/days/${dayId}`, label: $day ? dayTitle(dayNumber($day)) : 'День' }}
+    {back}
     title="Выбери упражнение"
     art={bars}
     artLayout="behind"
@@ -60,7 +74,7 @@
   {/if}
 
   <div class="actions-bottom">
-    <Button icon="plus" to="/exercises/new?back={encodeURIComponent(`/days/${dayId}/add`)}">Создать упражнение</Button>
+    <Button icon="plus" to="/exercises/new?back={encodeURIComponent(`/days/${dayId}/add${seriesId ? `?series=${seriesId}` : ''}`)}">Создать упражнение</Button>
   </div>
 </main>
 

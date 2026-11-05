@@ -12,7 +12,7 @@
   import Home from './screens/Home.svelte';
   import Kit from './screens/Kit.svelte';
   import Program from './screens/Program.svelte';
-  import Series from './screens/Series.svelte';
+  import SeriesEditor from './screens/SeriesEditor.svelte';
   import Settings from './screens/Settings.svelte';
   import Workout from './screens/Workout.svelte';
   import WorkoutSummary from './screens/WorkoutSummary.svelte';
@@ -28,7 +28,7 @@
     ['/days', Days],
     ['/days/:dayId', DayEditor],
     ['/days/:dayId/add', ExerciseSelect],
-    ['/days/:dayId/series', Series],
+    ['/days/:dayId/series/:itemId', SeriesEditor],
     ['/days/:dayId/items/:itemId', ExerciseConfig],
     ['/exercises', Exercises],
     ['/exercises/new', ExerciseForm],

@@ -3,19 +3,27 @@
   import { onMount } from 'svelte';
   import { getActiveWorkout, saveWorkout } from '../lib/db/repo';
   import type { Workout } from '../lib/domain/types';
+  import { seriesTitle } from '../lib/domain/series';
   import {
+    ACTUAL_REPS_MAX,
+    ACTUAL_REPS_MIN,
     adjustRest,
+    blockCount,
+    blocksDone,
     completeSet,
+    currentReps,
+    currentStep,
     endRest,
-    exercisesDone,
     formatTimer,
     isFinished,
     pauseRest,
     REST_ADJUST_SEC,
     restRemainingMs,
     resumeRest,
+    setActualReps,
     settle,
     skipExercise,
+    upcomingStep,
   } from '../lib/domain/workout';
   import { navigate } from '../lib/router.svelte';
   import AccentStripe from '../lib/ui/AccentStripe.svelte';
@@ -31,8 +39,10 @@
 
   onMount(() => {
     getActiveWorkout().then((active) => {
-      if (active) apply(settle(active, Date.now()));
-      else workout = null;
+      if (active) {
+        latest = active;
+        act((w) => settle(w, Date.now()));
+      } else workout = null;
     });
     // The rest timer is a timestamp; this only redraws it and notices when it runs out.
     const timer = setInterval(() => (now = Date.now()), 250);
@@ -42,24 +52,54 @@
   // The next set opens automatically at 0:00.
   $effect(() => {
     if (workout?.rest && workout.rest.pausedRemainingMs === null && now >= workout.rest.endsAt) {
-      apply(settle(workout, now));
+      act((w) => settle(w, now));
     }
   });
 
-  async function apply(next: Workout) {
-    const plain = $state.snapshot(next) as Workout;
-    // Refresh the clock too: a stale `now` would show 01:31 for a 1:30 rest for a moment.
-    now = Date.now();
-    workout = plain;
-    await saveWorkout(plain);
-    if (isFinished(plain)) navigate(`/workout/${plain.id}/summary`, { replace: true });
+  /** The newest state, possibly still being saved. Every change builds on it, so quick taps add up. */
+  let latest: Workout | null = null;
+  let saving: Promise<void> = Promise.resolve();
+
+  /**
+   * Applies a change. Saves run one after another in tap order, and the screen shows a state
+   * only once it is saved: what is visible survives the app closing right after a tap.
+   */
+  function act(change: (current: Workout) => Workout) {
+    if (!latest) return;
+    const changed = change(latest);
+    // Nothing changed (e.g. a timer tick while the save that ended the rest is still running).
+    // On first load it still goes through, to show the screen.
+    if (changed === latest && workout !== undefined) return;
+    const next = $state.snapshot(changed) as Workout;
+    latest = next;
+    saving = saving.then(async () => {
+      await saveWorkout(next);
+      if (latest !== next) return; // a newer change follows; it will be shown instead
+      // Refresh the clock too: a stale `now` would show 01:31 for a 1:30 rest for a moment.
+      now = Date.now();
+      workout = next;
+      if (isFinished(next)) navigate(`/workout/${next.id}/summary`, { replace: true });
+    });
   }
 
-  const exercise = $derived(workout ? workout.exercises[workout.position.exercise] : undefined);
-  const upcoming = $derived(
-    workout?.rest ? { position: workout.rest.next, exercise: workout.exercises[workout.rest.next.exercise] } : undefined,
-  );
-  const nextIsNewExercise = $derived(!!workout?.rest && workout.rest.next.exercise !== workout.position.exercise);
+  const step = $derived(workout ? currentStep(workout) : undefined);
+  const reps = $derived(workout && !workout.rest ? currentReps(workout) : 0);
+  const exercise = $derived(workout && step ? workout.exercises[step.exercise] : undefined);
+  /** While resting: the step that comes next. */
+  const upcoming = $derived.by(() => {
+    const next = workout?.rest ? upcomingStep(workout) : undefined;
+    return workout && next ? { step: next, exercise: workout.exercises[next.exercise] } : undefined;
+  });
+  // What the rest leads to: another set of the same exercise, the next round, or another exercise.
+  const nextKind = $derived.by((): 'set' | 'round' | 'exercise' => {
+    if (!upcoming || !step || !exercise) return 'exercise';
+    if (upcoming.step.exercise === step.exercise) return exercise.series ? 'round' : 'set';
+    if (exercise.series && upcoming.exercise.block === exercise.block && upcoming.step.set > step.set) return 'round';
+    return 'exercise';
+  });
+  /** «2 из 3»: the set, or in a series the round. */
+  const countOf = (ex: { sets: unknown[]; series: { rounds: number } | null }, set: number) =>
+    `${set + 1} из ${ex.series?.rounds ?? ex.sets.length}`;
   const remaining = $derived(workout ? restRemainingMs(workout, now) : 0);
   const paused = $derived(workout?.rest?.pausedRemainingMs != null);
 </script>
@@ -75,32 +115,62 @@
     <p class="empty">Тренировка не начата. Начните её на главном экране.</p>
     <Button variant="secondary" to="/">На главную</Button>
   {:else if workout && exercise}
-    <ProgressScale total={workout.exercises.length} current={exercisesDone(workout)} label="Упражнения тренировки" />
+    <ProgressScale total={blockCount(workout)} current={blocksDone(workout)} label="Упражнения тренировки" />
 
     {#if !workout.rest}
       <section class="stage" aria-live="polite">
         <AccentStripe class="stage-stripe" />
-        <p class="kicker display">Упражнение {workout.position.exercise + 1} из {workout.exercises.length}</p>
+        <p class="kicker display">
+          {#if exercise.series}
+            {seriesTitle(exercise.series.number)} · Круг {step!.set + 1} из {exercise.series.rounds}
+          {:else}
+            Упражнение {exercise.block + 1} из {blockCount(workout)}
+          {/if}
+        </p>
         <h1 class="exercise display" use:fitText={{ max: 96 }}>{exercise.name}</h1>
       </section>
 
       <div class="panel figures">
         <div>
-          <span class="label">Подход</span>
+          <span class="label">{exercise.series ? 'Круг' : 'Подход'}</span>
           <span class="big display"
-            ><span class="current">{workout.position.set + 1}</span> / {exercise.sets.length}</span
+            ><span class="current">{step!.set + 1}</span> / {exercise.series?.rounds ?? exercise.sets.length}</span
           >
         </div>
         <div>
           <span class="label">Повторения</span>
-          <span class="big display">{exercise.sets[workout.position.set].reps}</span>
+          <!-- The repetitions actually done: start at the plan, adjusted before «Завершить подход». -->
+          <div class="reps" role="group" aria-label="Повторения">
+            <button
+              type="button"
+              class="adjust"
+              aria-label="Повторения: меньше"
+              disabled={reps <= ACTUAL_REPS_MIN}
+              onclick={() => act((w) => setActualReps(w, currentReps(w) - 1))}
+            >
+              <Icon name="minus" size={20} />
+            </button>
+            <output class="big display" class:long={reps >= 100}>{reps}</output>
+            <button
+              type="button"
+              class="adjust"
+              aria-label="Повторения: больше"
+              disabled={reps >= ACTUAL_REPS_MAX}
+              onclick={() => act((w) => setActualReps(w, currentReps(w) + 1))}
+            >
+              <Icon name="plus" size={20} />
+            </button>
+          </div>
+          {#if reps !== exercise.sets[step!.set].reps}
+            <span class="plan">план {exercise.sets[step!.set].reps}</span>
+          {/if}
         </div>
       </div>
 
       <div class="actions">
-        <Button onclick={() => workout && apply(completeSet(workout, Date.now()))}>Завершить подход</Button>
-        <Button variant="secondary" onclick={() => workout && apply(skipExercise(workout, Date.now()))}>
-          Пропустить упражнение
+        <Button onclick={() => act((w) => completeSet(w, Date.now()))}>Завершить подход</Button>
+        <Button variant="secondary" onclick={() => act((w) => skipExercise(w, Date.now()))}>
+          {exercise.series ? 'Пропустить серию' : 'Пропустить упражнение'}
         </Button>
       </div>
     {:else if upcoming}
@@ -108,23 +178,27 @@
         <AccentStripe class="stage-stripe" />
         <h1 class="display rest-title">Отдых</h1>
         <p class="timer display" role="timer" aria-label="Осталось {formatTimer(remaining)}">{formatTimer(remaining)}</p>
-        <p class="until display">{nextIsNewExercise ? 'До следующего упражнения' : 'До следующего подхода'}</p>
-        <p class="which display">Подход {upcoming.position.set + 1} из {upcoming.exercise.sets.length}</p>
+        <p class="until display">
+          {nextKind === 'set' ? 'До следующего подхода' : nextKind === 'round' ? 'До следующего круга' : 'До следующего упражнения'}
+        </p>
+        <p class="which display">
+          {upcoming.exercise.series ? 'Круг' : 'Подход'} {countOf(upcoming.exercise, upcoming.step.set)}
+        </p>
       </section>
 
       <div class="panel controls">
-        <button type="button" class="round" onclick={() => workout && apply(adjustRest(workout, -REST_ADJUST_SEC, Date.now()))}>
+        <button type="button" class="round" onclick={() => act((w) => adjustRest(w, -REST_ADJUST_SEC, Date.now()))}>
           <Icon name="minus" size={28} /><span class="visually-hidden">Отдых: меньше на 30 секунд</span>
         </button>
         <button
           type="button"
           class="round main"
-          onclick={() => workout && apply(paused ? resumeRest(workout, Date.now()) : pauseRest(workout, Date.now()))}
+          onclick={() => act((w) => (w.rest?.pausedRemainingMs != null ? resumeRest(w, Date.now()) : pauseRest(w, Date.now())))}
         >
           <Icon name={paused ? 'play' : 'pause'} size={30} />
           <span class="visually-hidden">{paused ? 'Продолжить отдых' : 'Пауза'}</span>
         </button>
-        <button type="button" class="round" onclick={() => workout && apply(adjustRest(workout, REST_ADJUST_SEC, Date.now()))}>
+        <button type="button" class="round" onclick={() => act((w) => adjustRest(w, REST_ADJUST_SEC, Date.now()))}>
           <Icon name="plus" size={28} /><span class="visually-hidden">Отдых: больше на 30 секунд</span>
         </button>
         <span class="caption" aria-hidden="true">- 30 с</span>
@@ -133,22 +207,24 @@
       </div>
 
       <div class="panel next">
-        <span class="label">{nextIsNewExercise ? 'Следующее упражнение' : 'Следующий подход'}</span>
+        <span class="label">
+          {nextKind === 'set' ? 'Следующий подход' : nextKind === 'round' ? 'Следующий круг' : 'Следующее упражнение'}
+        </span>
         <p class="next-name display">{upcoming.exercise.name}</p>
         <div class="figures small">
           <div>
-            <span class="label">Подход</span>
-            <span class="display">{upcoming.position.set + 1} из {upcoming.exercise.sets.length}</span>
+            <span class="label">{upcoming.exercise.series ? 'Круг' : 'Подход'}</span>
+            <span class="display">{countOf(upcoming.exercise, upcoming.step.set)}</span>
           </div>
           <div>
             <span class="label">Повторения</span>
-            <span class="display">{upcoming.exercise.sets[upcoming.position.set].reps}</span>
+            <span class="display">{upcoming.exercise.sets[upcoming.step.set].reps}</span>
           </div>
         </div>
       </div>
 
       <div class="actions">
-        <Button variant="secondary" onclick={() => workout && apply(endRest(workout))}>Завершить отдых</Button>
+        <Button variant="secondary" onclick={() => act(endRest)}>Завершить отдых</Button>
       </div>
     {/if}
   {/if}
@@ -173,9 +249,12 @@
     font-size: var(--fs-title);
   }
 
+  /* minmax(0, …) and min-width: 0 give the title a definite width, so fitText can shrink
+     a long one-word name («Подтягивания») instead of letting it run off the screen. */
   .stage {
     position: relative;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 6px;
     min-height: 210px;
@@ -207,6 +286,7 @@
   }
 
   .exercise {
+    min-width: 0;
     font-size: 72px;
     text-shadow: 0 2px 0 rgb(7 7 6 / 0.55);
   }
@@ -240,9 +320,10 @@
     padding: 14px 18px;
   }
 
+  /* The set column takes what «1 / 3» needs; the repetitions with − / + get the rest. */
   .figures {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto 1fr;
   }
 
   .figures > div {
@@ -264,10 +345,50 @@
   .big {
     font-size: 72px;
     line-height: 1;
+    white-space: nowrap;
   }
 
   .current {
     color: var(--c-red);
+  }
+
+  .reps {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .reps .big {
+    min-width: 1.1em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reps .big.long {
+    font-size: 52px;
+  }
+
+  .adjust {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 2px solid var(--c-cream);
+    border-radius: 50%;
+    background: none;
+    color: var(--c-cream);
+    cursor: pointer;
+  }
+
+  .adjust:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .plan {
+    font-size: var(--fs-label);
+    color: var(--c-text-muted);
   }
 
   .actions {

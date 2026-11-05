@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Exercise, TrainingDay, Workout } from '../domain/types';
+import { migrateWorkoutV2 } from '../domain/workout';
 
 export class AtletikaDB extends Dexie {
   exercises!: EntityTable<Exercise, 'id'>;
@@ -17,6 +18,19 @@ export class AtletikaDB extends Dexie {
     this.version(2).stores({
       workouts: 'id, startedAt, finishedAt',
     });
+    // v3: workouts store a flat list of steps (series interleave rounds) instead of a position.
+    this.version(3)
+      .stores({})
+      .upgrade((tx) =>
+        tx
+          .table('workouts')
+          .toCollection()
+          .modify((workout) => {
+            if (workout.steps) return;
+            Object.assign(workout, migrateWorkoutV2(workout));
+            delete workout.position;
+          }),
+      );
   }
 }
 

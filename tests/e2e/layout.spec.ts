@@ -223,7 +223,15 @@ test.describe('headers without an illustration: black-and-red background image',
         for (let i = 0; i < 4; i++) await page.getByRole('button', { name: /пропустить упражнение/i }).click();
       },
     },
-    { name: 'Series', open: (page) => page.goto('./#/days/x/series') },
+    {
+      name: 'Series editor',
+      open: async (page) => {
+        await loadDemo(page);
+        await page.goto('./#/days');
+        await page.getByRole('link', { name: /день 3/i }).first().click();
+        await page.getByRole('button', { name: 'Настроить Серия 1' }).click();
+      },
+    },
   ];
 
   for (const screen of PLAIN_SCREENS) {

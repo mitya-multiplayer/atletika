@@ -59,5 +59,7 @@ Before calling work finished, run and report all of: `npm run check`, `npm test`
 ## Gotchas
 - Pass `$state.snapshot(value)` to Dexie: IndexedDB cannot store Svelte proxies.
 - Sort Russian text with `sortByName` (Intl.Collator), not code-point order.
-- `ДЕНЬ N` is derived from `position`; deleting a day renumbers the rest.
+- `ДЕНЬ N` is derived from `position`; deleting a day renumbers the rest. Likewise «Серия N» is derived from the series' order in its day (`seriesNumber`).
+- A day item is an exercise or a series (`item.kind`). Use `exerciseIdsOf(item)` to find the library exercises it uses.
+- A workout is a flat list of steps (`src/lib/domain/workout.ts`); a series interleaves its exercises round by round. Stored workouts changed shape in Dexie v3, migrated by `migrateWorkoutV2`.
 - Generate ids with `newId()` from `repo.ts`: `crypto.randomUUID` is missing on plain-HTTP LAN addresses used for phone testing.

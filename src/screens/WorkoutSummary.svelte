@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { getWorkout } from '../lib/db/repo';
   import { dayTitle, formatDateParts } from '../lib/domain/format';
+  import { seriesTitle } from '../lib/domain/series';
   import type { Workout } from '../lib/domain/types';
   import { durationMinutes, exerciseResult, summaryText } from '../lib/domain/workout';
   import Button from '../lib/ui/Button.svelte';
@@ -70,7 +71,13 @@
         <li>
           <span class="name">{exercise.name}</span>
           <span class="sets display">{exerciseResult(exercise)}</span>
-          {#if exercise.skipped}<span class="skipped">пропущено</span>{/if}
+          {#if exercise.series || exercise.skipped}
+            <span class="note">
+              {[exercise.series ? seriesTitle(exercise.series.number) : '', exercise.skipped ? 'пропущено' : '']
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -120,7 +127,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .skipped {
+  .note {
     grid-column: 1 / -1;
     font-size: var(--fs-small);
     color: var(--c-text-muted);

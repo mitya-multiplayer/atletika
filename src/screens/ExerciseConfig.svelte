@@ -23,7 +23,7 @@
   onMount(async () => {
     const loaded = await getDay(dayId);
     const item = loaded?.items.find((i) => i.id === itemId);
-    if (!loaded || !item) {
+    if (!loaded || !item || item.kind !== 'exercise') {
       notFound = true;
       return;
     }

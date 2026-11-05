@@ -4,6 +4,20 @@ Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict
 
 ## 2026-11-05
 
+### Series (answers to spec 4.9)
+- **Day editor: option A** (`docs/mockups/series-option-a.png`). A series is one card, moved as a whole; its exercises are edited in the series editor (pencil).
+- **Rest:** both after each exercise in a round and after each full round.
+- **During a workout:** the round is shown, «Круг 2 из 5», with the usual set and rest screens.
+- **In the summary and history:** one line per exercise, with its repetitions in each round.
+- **Names:** no custom names; series are numbered automatically within a day, «Серия 1», «Серия 2», …
+
+Follow-ons applied in the draft:
+- Each exercise in a series has its own repetitions and rest. After the last exercise of a round the rest after the round applies instead; after the last round it is the rest before the next item.
+- In a series, «ПРОПУСТИТЬ СЕРИЮ» replaces «Пропустить упражнение» and skips the rest of the series.
+- On the workout progress scale a series is one segment, like an exercise.
+- The series editor saves each change at once; «ГОТОВО» returns to the day.
+- A series without exercises is left out when a workout starts.
+
 ### Active workout
 Answers to the open questions in spec 4.10:
 1. **Finishing a set** («ЗАВЕРШИТЬ ПОДХОД») starts that set's rest timer automatically.
@@ -13,6 +27,8 @@ Answers to the open questions in spec 4.10:
 5. **Leaving does not pause or cancel.** «← ГЛАВНАЯ» leaves without confirmation; the workout is resumed later from Home («ПРОДОЛЖИТЬ ТРЕНИРОВКУ»). A running rest timer keeps counting while the user is away.
 6. **A summary screen** ends the workout, with a «КОПИРОВАТЬ» button that copies the result as plain text for sending in a message.
 7. **The next day** is the one after the last completed workout's day, wrapping to Day 1 (was provisional).
+
+8. **Actual repetitions are recorded.** The set screen has − and + around «Повторения», starting at the planned number; «ЗАВЕРШИТЬ ПОДХОД» records what it shows. The summary, history and copied text show actual repetitions. When they differ from the plan, «план N» is shown under the number. Range 0–999.
 
 Follow-ons applied in the draft:
 - The final set of the whole workout has no rest: the summary opens right away. A set with 0:00 rest goes straight to the next set.
@@ -78,4 +94,5 @@ These are placeholders, isolated in code, until the product decision is made:
 | Deleting a library exercise used in days | Blocked, with a message naming the days | `src/lib/db/repo.ts` |
 | Abandoning a workout in progress | Not possible; skipping the remaining exercises finishes it | `src/lib/domain/workout.ts` |
 | Deleting or editing history records | Not possible (spec 4.11 OPEN) | `src/screens/History.svelte` |
-| Series, settings | Placeholder screens | `src/screens/` |
+| New series | 3 rounds, 2:00 rest after a round; an exercise added to it: 10 reps, 0:30 rest | `src/lib/domain/series.ts` |
+| Settings | Placeholder screen | `src/screens/Settings.svelte` |

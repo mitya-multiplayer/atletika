@@ -1,8 +1,9 @@
 import { liveQuery } from 'dexie';
 import { sortByName, type ExerciseInput } from '../domain/exercises';
 import { moveItem } from '../domain/order';
+import { addSeriesExercise, exerciseIdsOf, newSeries, newSeriesExercise } from '../domain/series';
 import { defaultSets } from '../domain/sets';
-import type { Exercise, Id, SetConfig, TrainingDay, Workout } from '../domain/types';
+import type { Exercise, Id, SeriesItem, SetConfig, TrainingDay, Workout } from '../domain/types';
 import { createWorkout } from '../domain/workout';
 import { db } from './db';
 
@@ -37,7 +38,7 @@ export async function saveExercise(input: ExerciseInput & { id?: Id }): Promise<
 
 export async function daysUsingExercise(id: Id): Promise<TrainingDay[]> {
   const days = await db.days.orderBy('position').toArray();
-  return days.filter((day) => day.items.some((item) => item.exerciseId === id));
+  return days.filter((day) => day.items.some((item) => exerciseIdsOf(item).includes(id)));
 }
 
 export type DeleteExerciseResult = { deleted: true } | { deleted: false; usedIn: TrainingDay[] };
@@ -98,7 +99,7 @@ export async function addExerciseToDay(dayId: Id, exerciseId: Id): Promise<Id> {
 
 export async function updateItemSets(dayId: Id, itemId: Id, sets: SetConfig[]): Promise<void> {
   await modifyDay(dayId, (day) => ({
-    items: day.items.map((item) => (item.id === itemId ? { ...item, sets } : item)),
+    items: day.items.map((item) => (item.id === itemId && item.kind === 'exercise' ? { ...item, sets } : item)),
   }));
 }
 
@@ -108,6 +109,28 @@ export async function removeItem(dayId: Id, itemId: Id): Promise<void> {
 
 export async function moveDayItem(dayId: Id, from: number, to: number): Promise<void> {
   await modifyDay(dayId, (day) => ({ items: moveItem(day.items, from, to) }));
+}
+
+// ---- Series inside a day ----
+
+/** Adds an empty series at the end of the day. */
+export async function addSeriesToDay(dayId: Id): Promise<Id> {
+  const itemId = newId();
+  await modifyDay(dayId, (day) => ({ items: [...day.items, newSeries(itemId)] }));
+  return itemId;
+}
+
+/** Applies a pure change (src/lib/domain/series.ts) to one series of a day. */
+export async function modifySeries(dayId: Id, itemId: Id, change: (series: SeriesItem) => SeriesItem): Promise<void> {
+  await modifyDay(dayId, (day) => ({
+    items: day.items.map((item) => (item.id === itemId && item.kind === 'series' ? change(item) : item)),
+  }));
+}
+
+export async function addExerciseToSeries(dayId: Id, itemId: Id, exerciseId: Id): Promise<Id> {
+  const id = newId();
+  await modifySeries(dayId, itemId, (series) => addSeriesExercise(series, newSeriesExercise(id, exerciseId)));
+  return id;
 }
 
 async function modifyDay(id: Id, change: (day: TrainingDay) => Partial<TrainingDay>): Promise<void> {
@@ -159,7 +182,7 @@ export async function startOrResumeWorkout(dayId: Id, now = Date.now()): Promise
     if (active) return active;
     const day = await db.days.get(dayId);
     if (!day) throw new Error(`Training day ${dayId} not found`);
-    const exercises = await db.exercises.bulkGet(day.items.map((item) => item.exerciseId));
+    const exercises = await db.exercises.bulkGet(day.items.flatMap(exerciseIdsOf));
     const names = new Map(exercises.filter((e) => !!e).map((e) => [e.id, e.name]));
     const workout = createWorkout(day, names, newId(), now);
     if (workout) await db.workouts.add(workout);

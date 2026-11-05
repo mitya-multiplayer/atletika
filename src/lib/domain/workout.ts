@@ -1,26 +1,67 @@
 // Active workout rules (docs/DECISIONS.md, 2026-11-05). Pure functions: each returns
 // a new Workout and never mutates its input. Time is passed in as `now` (ms).
+//
+// A workout is a flat list of steps (one set each). An exercise item contributes its
+// sets in order; a series contributes its exercises round by round.
 import { dayNumber, dayTitle } from './format';
-import type { Id, TrainingDay, Workout, WorkoutPosition } from './types';
+import { seriesTitle } from './series';
+import type { Id, TrainingDay, Workout, WorkoutExercise, WorkoutStep } from './types';
 
 export const REST_ADJUST_SEC = 30;
 
-/** Snapshot of a training day as a new workout; null when the day has no exercises. */
+/** Snapshot of a training day as a new workout; null when the day has nothing to do. */
 export function createWorkout(
   day: TrainingDay,
   exerciseNames: ReadonlyMap<Id, string>,
   id: Id,
   now: number,
 ): Workout | null {
-  const exercises = day.items
-    .filter((item) => item.sets.length > 0)
-    .map((item) => ({
-      exerciseId: item.exerciseId,
-      name: exerciseNames.get(item.exerciseId) ?? '',
-      sets: item.sets.map((set) => ({ reps: set.reps, restSec: set.restSec, done: false })),
-      skipped: false,
-    }));
-  if (exercises.length === 0) return null;
+  const exercises: WorkoutExercise[] = [];
+  const steps: WorkoutStep[] = [];
+  let seriesCount = 0;
+
+  day.items.forEach((item, block) => {
+    if (item.kind === 'exercise') {
+      if (item.sets.length === 0) return;
+      const index = exercises.length;
+      exercises.push({
+        exerciseId: item.exerciseId,
+        name: exerciseNames.get(item.exerciseId) ?? '',
+        sets: item.sets.map((set) => ({ reps: set.reps, done: false })),
+        skipped: false,
+        block,
+        series: null,
+      });
+      item.sets.forEach((set, s) => steps.push({ exercise: index, set: s, restSec: set.restSec }));
+      return;
+    }
+    seriesCount += 1;
+    if (item.exercises.length === 0 || item.rounds < 1) return;
+    const first = exercises.length;
+    for (const ex of item.exercises) {
+      exercises.push({
+        exerciseId: ex.exerciseId,
+        name: exerciseNames.get(ex.exerciseId) ?? '',
+        sets: Array.from({ length: item.rounds }, () => ({ reps: ex.reps, done: false })),
+        skipped: false,
+        block,
+        series: { number: seriesCount, rounds: item.rounds },
+      });
+    }
+    const last = item.exercises.length - 1;
+    for (let round = 0; round < item.rounds; round++) {
+      item.exercises.forEach((ex, i) =>
+        // After the round's last exercise the rest after the round applies.
+        steps.push({ exercise: first + i, set: round, restSec: i === last ? item.roundRestSec : ex.restSec }),
+      );
+    }
+  });
+
+  if (steps.length === 0) return null;
+  // Renumber blocks densely so the progress scale counts only items that are in the workout.
+  const blocks = [...new Set(exercises.map((e) => e.block))];
+  for (const e of exercises) e.block = blocks.indexOf(e.block);
+
   return {
     id,
     dayId: day.id,
@@ -29,7 +70,8 @@ export function createWorkout(
     startedAt: now,
     finishedAt: null,
     exercises,
-    position: { exercise: 0, set: 0 },
+    steps,
+    step: 0,
     rest: null,
   };
 }
@@ -38,43 +80,67 @@ export function isFinished(workout: Workout): boolean {
   return workout.finishedAt !== null;
 }
 
-/** The set after `from`: the next set of the same exercise, else the first set of the next one. */
-export function nextPosition(workout: Workout, from: WorkoutPosition): WorkoutPosition | null {
-  const exercise = workout.exercises[from.exercise];
-  if (from.set + 1 < exercise.sets.length) return { exercise: from.exercise, set: from.set + 1 };
-  if (from.exercise + 1 < workout.exercises.length) return { exercise: from.exercise + 1, set: 0 };
-  return null;
+export function currentStep(workout: Workout): WorkoutStep {
+  return workout.steps[workout.step];
 }
 
-/** «ЗАВЕРШИТЬ ПОДХОД»: marks the set done and starts its rest. The last set of the workout finishes it. */
+/** The step after the current one, if any. */
+export function upcomingStep(workout: Workout): WorkoutStep | undefined {
+  return workout.steps[workout.step + 1];
+}
+
+export const ACTUAL_REPS_MIN = 0;
+export const ACTUAL_REPS_MAX = 999;
+
+/** The repetitions the set screen shows for the current set: the actual count once adjusted, else the plan. */
+export function currentReps(workout: Workout): number {
+  const step = currentStep(workout);
+  const set = workout.exercises[step.exercise].sets[step.set];
+  return set.actual ?? set.reps;
+}
+
+/** − / + on the set screen: the repetitions actually done in the current set (0–999). */
+export function setActualReps(workout: Workout, reps: number): Workout {
+  if (isFinished(workout) || workout.rest) return workout;
+  const step = currentStep(workout);
+  const actual = Math.min(ACTUAL_REPS_MAX, Math.max(ACTUAL_REPS_MIN, Math.round(reps)));
+  const exercises = workout.exercises.map((ex, e) =>
+    e === step.exercise ? { ...ex, sets: ex.sets.map((s, i) => (i === step.set ? { ...s, actual } : s)) } : ex,
+  );
+  return { ...workout, exercises };
+}
+
+/** «ЗАВЕРШИТЬ ПОДХОД»: marks the set done and starts its rest. The last step of the workout finishes it. */
 export function completeSet(workout: Workout, now: number): Workout {
   if (isFinished(workout) || workout.rest) return workout;
-  const { exercise, set } = workout.position;
+  const step = currentStep(workout);
   const exercises = workout.exercises.map((ex, e) =>
-    e === exercise ? { ...ex, sets: ex.sets.map((s, i) => (i === set ? { ...s, done: true } : s)) } : ex,
+    e === step.exercise ? { ...ex, sets: ex.sets.map((s, i) => (i === step.set ? { ...s, done: true } : s)) } : ex,
   );
   const updated = { ...workout, exercises };
-  const next = nextPosition(updated, workout.position);
-  if (!next) return finish(updated, now);
-  const restSec = exercises[exercise].sets[set].restSec;
-  if (restSec <= 0) return { ...updated, position: next };
-  return { ...updated, rest: { next, endsAt: now + restSec * 1000, pausedRemainingMs: null } };
+  if (workout.step + 1 >= workout.steps.length) return finish(updated, now);
+  if (step.restSec <= 0) return { ...updated, step: workout.step + 1 };
+  return { ...updated, rest: { endsAt: now + step.restSec * 1000, pausedRemainingMs: null } };
 }
 
-/** «ПРОПУСТИТЬ УПРАЖНЕНИЕ»: its remaining sets stay undone; goes straight to the next exercise. */
+/**
+ * «ПРОПУСТИТЬ УПРАЖНЕНИЕ» / «ПРОПУСТИТЬ СЕРИЮ»: the current item's remaining sets stay undone;
+ * goes straight to the next item, without rest.
+ */
 export function skipExercise(workout: Workout, now: number): Workout {
   if (isFinished(workout) || workout.rest) return workout;
-  const index = workout.position.exercise;
-  const exercises = workout.exercises.map((ex, e) => (e === index ? { ...ex, skipped: true } : ex));
+  const block = workout.exercises[currentStep(workout).exercise].block;
+  const exercises = workout.exercises.map((ex) => (ex.block === block ? { ...ex, skipped: true } : ex));
   const updated = { ...workout, exercises };
-  if (index + 1 >= exercises.length) return finish(updated, now);
-  return { ...updated, position: { exercise: index + 1, set: 0 } };
+  const next = workout.steps.findIndex((s, i) => i > workout.step && exercises[s.exercise].block !== block);
+  if (next === -1) return finish(updated, now);
+  return { ...updated, step: next };
 }
 
-/** «ЗАВЕРШИТЬ ОТДЫХ», or the timer reaching 0:00: the next set opens. */
+/** «ЗАВЕРШИТЬ ОТДЫХ», or the timer reaching 0:00: the next step opens. */
 export function endRest(workout: Workout): Workout {
   if (!workout.rest) return workout;
-  return { ...workout, position: workout.rest.next, rest: null };
+  return { ...workout, step: workout.step + 1, rest: null };
 }
 
 export function restRemainingMs(workout: Workout, now: number): number {
@@ -84,7 +150,7 @@ export function restRemainingMs(workout: Workout, now: number): number {
   return Math.max(0, rest.endsAt - now);
 }
 
-/** Applies elapsed time: a running rest that has run out opens the next set. */
+/** Applies elapsed time: a running rest that has run out opens the next step. */
 export function settle(workout: Workout, now: number): Workout {
   const rest = workout.rest;
   if (rest && rest.pausedRemainingMs === null && now >= rest.endsAt) return endRest(workout);
@@ -110,16 +176,22 @@ export function pauseRest(workout: Workout, now: number): Workout {
 export function resumeRest(workout: Workout, now: number): Workout {
   const rest = workout.rest;
   if (!rest || rest.pausedRemainingMs === null) return workout;
-  return { ...workout, rest: { ...rest, endsAt: now + rest.pausedRemainingMs, pausedRemainingMs: null } };
+  return { ...workout, rest: { endsAt: now + rest.pausedRemainingMs, pausedRemainingMs: null } };
 }
 
 export function finish(workout: Workout, now: number): Workout {
   return { ...workout, finishedAt: now, rest: null };
 }
 
-/** How many exercises are behind the current one (done or skipped). */
-export function exercisesDone(workout: Workout): number {
-  return isFinished(workout) ? workout.exercises.length : workout.position.exercise;
+/** Items (exercises or series) in the workout: the progress scale's segments. */
+export function blockCount(workout: Workout): number {
+  return new Set(workout.exercises.map((e) => e.block)).size;
+}
+
+/** How many items are behind the current one (done or skipped). */
+export function blocksDone(workout: Workout): number {
+  if (isFinished(workout)) return blockCount(workout);
+  return workout.exercises[currentStep(workout).exercise].block;
 }
 
 /** Remaining time as the large timer shows it: 90 000 ms → "01:30". Rounds up. */
@@ -133,9 +205,14 @@ export function durationMinutes(workout: Workout): number {
   return Math.max(1, Math.round((end - workout.startedAt) / 60_000));
 }
 
-/** Each set's repetitions, «-» for sets not done: "8/8/-". */
-export function exerciseResult(exercise: Workout['exercises'][number]): string {
-  return exercise.sets.map((set) => (set.done ? String(set.reps) : '-')).join('/');
+/** Each set's (or round's) repetitions actually done, «-» for those not done: "8/7/-". */
+export function exerciseResult(exercise: WorkoutExercise): string {
+  return exercise.sets.map((set) => (set.done ? String(set.actual ?? set.reps) : '-')).join('/');
+}
+
+/** "Подтягивания (серия 1)" for exercises from a series. */
+export function exerciseLabel(exercise: WorkoutExercise): string {
+  return exercise.series ? `${exercise.name} (${seriesTitle(exercise.series.number).toLowerCase()})` : exercise.name;
 }
 
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -148,6 +225,38 @@ export function summaryText(workout: Workout): string {
     `Атлетика · ${day}`,
     `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()} · ${durationMinutes(workout)} мин`,
     '',
-    ...workout.exercises.map((exercise) => `${exercise.name}: ${exerciseResult(exercise)}`),
+    ...workout.exercises.map((exercise) => `${exerciseLabel(exercise)}: ${exerciseResult(exercise)}`),
   ].join('\n');
+}
+
+/**
+ * Converts a workout stored by schema v2 (position/rest.next) into this shape.
+ * Used by the Dexie v3 upgrade in src/lib/db/db.ts.
+ */
+export function migrateWorkoutV2(old: {
+  exercises: { exerciseId: Id; name: string; sets: { reps: number; restSec: number; done: boolean }[]; skipped: boolean }[];
+  position: { exercise: number; set: number };
+  rest: { endsAt: number; pausedRemainingMs: number | null } | null;
+}): Pick<Workout, 'exercises' | 'steps' | 'step' | 'rest'> {
+  const steps: WorkoutStep[] = [];
+  let step = 0;
+  old.exercises.forEach((ex, e) =>
+    ex.sets.forEach((set, s) => {
+      if (e === old.position.exercise && s === old.position.set) step = steps.length;
+      steps.push({ exercise: e, set: s, restSec: set.restSec });
+    }),
+  );
+  return {
+    exercises: old.exercises.map((ex, e) => ({
+      exerciseId: ex.exerciseId,
+      name: ex.name,
+      sets: ex.sets.map((set) => ({ reps: set.reps, done: set.done })),
+      skipped: ex.skipped,
+      block: e,
+      series: null,
+    })),
+    steps,
+    step,
+    rest: old.rest ? { endsAt: old.rest.endsAt, pausedRemainingMs: old.rest.pausedRemainingMs } : null,
+  };
 }

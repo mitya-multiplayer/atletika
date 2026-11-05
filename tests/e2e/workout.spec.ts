@@ -28,16 +28,15 @@ async function startWorkout(page: Page) {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
-/** Expects the rest timer to show about `seconds` (it may have run a little). */
+/** Expects the rest timer to show about `seconds` (it may have run a little), waiting for the screen to update. */
 async function expectTimer(page: Page, seconds: number) {
   await expect
     .poll(async () => {
       const [m, s] = (await page.getByRole('timer').textContent())!.split(':').map(Number);
-      return m * 60 + s;
+      const shown = m * 60 + s;
+      return shown >= seconds - 3 && shown <= seconds ? 'ok' : shown;
     })
-    .toBeGreaterThanOrEqual(seconds - 3);
-  const [m, s] = (await page.getByRole('timer').textContent())!.split(':').map(Number);
-  expect(m * 60 + s).toBeLessThanOrEqual(seconds);
+    .toBe('ok');
 }
 
 async function expectSet(page: Page, exercise: RegExp, set: string, reps: number) {
@@ -55,6 +54,71 @@ test('starts the next day from home at its first set', async ({ page }) => {
   await expect(page.locator('.day-label')).toContainText(/день 1/i);
   await expect(page.locator('.day-label')).toContainText(/верх тела/i);
   await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+});
+
+test.describe('actual repetitions', () => {
+  const reps = (page: Page) => page.getByRole('group', { name: 'Повторения' }).locator('output');
+  const less = (page: Page) => page.getByRole('button', { name: 'Повторения: меньше' });
+  const more = (page: Page) => page.getByRole('button', { name: 'Повторения: больше' });
+
+  test('− and + set the repetitions done; the summary and copy show them', async ({ page }) => {
+    await startWorkout(page);
+    await expect(reps(page)).toHaveText('8');
+    await expect(page.getByText(/план/i)).toHaveCount(0);
+
+    await less(page).click();
+    await less(page).click();
+    await expect(reps(page)).toHaveText('6');
+    await expect(page.getByText('план 8')).toBeVisible();
+    await complete(page);
+    await endRest(page);
+
+    await expect(reps(page)).toHaveText('8'); // the next set starts at its plan
+    for (let i = 0; i < 3; i++) await more(page).click();
+    await expect(reps(page)).toHaveText('11');
+    await complete(page);
+    await endRest(page);
+    await complete(page); // third set at the plan
+    await endRest(page);
+    for (let i = 0; i < 3; i++) await skip(page);
+
+    await expect(page.getByRole('listitem').first()).toContainText('6/11/8');
+    await page.getByRole('button', { name: /копировать/i }).click();
+    const copied = await page.evaluate(() => (window as unknown as { copied: string }).copied);
+    expect(copied).toContain('Жим лёжа: 6/11/8');
+  });
+
+  test('the adjusted count survives closing the app', async ({ page }) => {
+    await startWorkout(page);
+    await less(page).click();
+    await expect(reps(page)).toHaveText('7');
+    await page.reload();
+    await expect(reps(page)).toHaveText('7');
+    await expect(page.getByText('план 8')).toBeVisible();
+  });
+
+  test('cannot go below 0', async ({ page }) => {
+    await startWorkout(page);
+    for (let i = 0; i < 8; i++) await less(page).click();
+    await expect(reps(page)).toHaveText('0');
+    await expect(less(page)).toBeDisabled();
+    await complete(page);
+    await endRest(page);
+    for (let i = 0; i < 4; i++) await skip(page);
+    await expect(page.getByRole('listitem').first()).toContainText('0/-/-');
+  });
+});
+
+test('the set count stays on one line next to the repetitions controls', async ({ page }) => {
+  await startWorkout(page);
+  const count = page.locator('.panel.figures .big').first();
+  await expect(count).toHaveText('1 / 3');
+  const lines = await count.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+  });
+  expect(lines).toBe(1);
 });
 
 test('the set screen buttons fit their labels on one line', async ({ page }) => {
@@ -151,6 +215,8 @@ test('the workout survives closing the app', async ({ page }) => {
   await startWorkout(page);
   await complete(page);
   await endRest(page);
+  // The screen updates only after the state is saved, so closing now loses nothing.
+  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
   await page.reload();
   await expectSet(page, /жим лёжа/i, '2 / 3', 8);
 });

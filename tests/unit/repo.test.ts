@@ -4,6 +4,8 @@ import { AtletikaDB, db } from '../../src/lib/db/db';
 import { loadDemoData } from '../../src/lib/db/demo';
 import {
   addExerciseToDay,
+  addExerciseToSeries,
+  addSeriesToDay,
   createDay,
   deleteDay,
   deleteExercise,
@@ -12,6 +14,7 @@ import {
   getDay,
   getLastFinishedWorkout,
   getWorkout,
+  modifySeries,
   moveDayItem,
   removeItem,
   renameDay,
@@ -20,6 +23,8 @@ import {
   startOrResumeWorkout,
   updateItemSets,
 } from '../../src/lib/db/repo';
+import { moveSeriesExercise, removeSeriesExercise, setRoundRest, setRounds, updateSeriesExercise } from '../../src/lib/domain/series';
+import type { ExerciseItem, SeriesItem } from '../../src/lib/domain/types';
 import { completeSet, finish, skipExercise } from '../../src/lib/domain/workout';
 
 beforeEach(async () => {
@@ -29,6 +34,8 @@ beforeEach(async () => {
 });
 
 const exercise = (name: string) => saveExercise({ name, description: '', videoUrl: '' });
+/** A day's items, all of them plain exercises in these tests. */
+const exerciseItems = async (dayId: string) => (await getDay(dayId))!.items as ExerciseItem[];
 
 describe('training days', () => {
   it('numbers new days in creation order', async () => {
@@ -59,16 +66,16 @@ describe('exercises in a day', () => {
     const first = await addExerciseToDay(day.id, pushUps);
     await addExerciseToDay(day.id, pullUps);
 
-    let items = (await getDay(day.id))!.items;
+    let items = await exerciseItems(day.id);
     expect(items.map((item) => item.exerciseId)).toEqual([pushUps, pullUps]);
     expect(items[0].sets).toHaveLength(3);
 
     await moveDayItem(day.id, 0, 1);
-    items = (await getDay(day.id))!.items;
+    items = await exerciseItems(day.id);
     expect(items.map((item) => item.exerciseId)).toEqual([pullUps, pushUps]);
 
     await removeItem(day.id, first);
-    items = (await getDay(day.id))!.items;
+    items = await exerciseItems(day.id);
     expect(items.map((item) => item.exerciseId)).toEqual([pullUps]);
   });
 
@@ -81,7 +88,7 @@ describe('exercises in a day', () => {
       { reps: 6, restSec: 180 },
     ];
     await updateItemSets(day.id, item, sets);
-    expect((await getDay(day.id))!.items[0].sets).toEqual(sets);
+    expect((await exerciseItems(day.id))[0].sets).toEqual(sets);
   });
 });
 
@@ -160,7 +167,8 @@ describe('workouts', () => {
     await saveWorkout(w);
     const stored = (await getWorkout(w.id))!;
     expect(stored.exercises[0].sets[0].done).toBe(true);
-    expect(stored.rest).toEqual({ next: { exercise: 0, set: 1 }, endsAt: 5000 + 90_000, pausedRemainingMs: null });
+    expect(stored.rest).toEqual({ endsAt: 5000 + 90_000, pausedRemainingMs: null });
+    expect(stored.step).toBe(0);
   });
 
   it('a finished workout is no longer active and becomes the last finished one', async () => {
@@ -209,6 +217,37 @@ describe('history', () => {
 });
 
 describe('database upgrade', () => {
+  it('converts a v2 workout in progress to steps, keeping its rest timer', async () => {
+    const name = 'atletika-upgrade-v2-test';
+    await Dexie.delete(name);
+    const v2 = new Dexie(name);
+    v2.version(1).stores({ exercises: 'id, name', days: 'id, position' });
+    v2.version(2).stores({ workouts: 'id, startedAt, finishedAt' });
+    await v2.table('workouts').add({
+      id: 'w1', dayId: 'd1', dayNumber: 1, dayName: 'Верх тела', startedAt: 1000, finishedAt: null,
+      exercises: [{ exerciseId: 'e1', name: 'Жим лёжа', skipped: false, sets: [
+        { reps: 8, restSec: 90, done: true },
+        { reps: 8, restSec: 90, done: false },
+      ] }],
+      position: { exercise: 0, set: 0 },
+      rest: { next: { exercise: 0, set: 1 }, endsAt: 99_000, pausedRemainingMs: null },
+    });
+    v2.close();
+
+    const v3 = new AtletikaDB(name);
+    const w = (await v3.workouts.get('w1'))!;
+    expect(w.steps).toEqual([
+      { exercise: 0, set: 0, restSec: 90 },
+      { exercise: 0, set: 1, restSec: 90 },
+    ]);
+    expect(w.step).toBe(0);
+    expect(w.rest).toEqual({ endsAt: 99_000, pausedRemainingMs: null });
+    expect(w.exercises[0]).toMatchObject({ block: 0, series: null, sets: [{ reps: 8, done: true }, { reps: 8, done: false }] });
+    expect('position' in w).toBe(false);
+    v3.close();
+    await Dexie.delete(name);
+  });
+
   it('keeps version 1 data and adds the workouts table', async () => {
     const name = 'atletika-upgrade-test';
     await Dexie.delete(name);
@@ -222,8 +261,82 @@ describe('database upgrade', () => {
     expect(await v2.exercises.get('e1')).toMatchObject({ name: 'Жим лёжа' });
     expect(await v2.days.get('d1')).toMatchObject({ name: 'Верх тела' });
     expect(await v2.workouts.count()).toBe(0);
-    expect(v2.verno).toBe(2);
+    expect(v2.verno).toBe(3);
     v2.close();
     await Dexie.delete(name);
+  });
+});
+
+describe('series in a day', () => {
+  const seriesOf = async (dayId: string, itemId: string) =>
+    (await getDay(dayId))!.items.find((item) => item.id === itemId) as SeriesItem;
+
+  it('adds an empty series with the defaults at the end of the day', async () => {
+    const day = await createDay();
+    await addExerciseToDay(day.id, await exercise('Жим лёжа'));
+    const id = await addSeriesToDay(day.id);
+    const items = (await getDay(day.id))!.items;
+    expect(items.map((item) => item.kind)).toEqual(['exercise', 'series']);
+    expect(await seriesOf(day.id, id)).toEqual({ kind: 'series', id, rounds: 3, roundRestSec: 120, exercises: [] });
+  });
+
+  it('adds, edits, reorders and removes exercises in a series', async () => {
+    const day = await createDay();
+    const id = await addSeriesToDay(day.id);
+    const pull = await exercise('Подтягивания');
+    const dips = await exercise('Отжимания на брусьях');
+    const a = await addExerciseToSeries(day.id, id, pull);
+    const b = await addExerciseToSeries(day.id, id, dips);
+    await modifySeries(day.id, id, (s) => updateSeriesExercise(setRoundRest(setRounds(s, 5), 90), a, { reps: 5, restSec: 45 }));
+
+    let series = await seriesOf(day.id, id);
+    expect(series.rounds).toBe(5);
+    expect(series.roundRestSec).toBe(90);
+    expect(series.exercises).toEqual([
+      { id: a, exerciseId: pull, reps: 5, restSec: 45 },
+      { id: b, exerciseId: dips, reps: 10, restSec: 30 },
+    ]);
+
+    await modifySeries(day.id, id, (s) => moveSeriesExercise(s, 0, 1));
+    series = await seriesOf(day.id, id);
+    expect(series.exercises.map((e) => e.id)).toEqual([b, a]);
+
+    await modifySeries(day.id, id, (s) => removeSeriesExercise(s, b));
+    expect((await seriesOf(day.id, id)).exercises.map((e) => e.id)).toEqual([a]);
+  });
+
+  it('keeps rounds, reps and rest within limits', async () => {
+    const day = await createDay();
+    const id = await addSeriesToDay(day.id);
+    const a = await addExerciseToSeries(day.id, id, await exercise('Подтягивания'));
+    await modifySeries(day.id, id, (s) => updateSeriesExercise(setRoundRest(setRounds(s, 0), -10), a, { reps: 0, restSec: -5 }));
+    const series = await seriesOf(day.id, id);
+    expect(series.rounds).toBe(1);
+    expect(series.roundRestSec).toBe(0);
+    expect(series.exercises[0]).toMatchObject({ reps: 1, restSec: 0 });
+  });
+
+  it('blocks deleting a library exercise that a series uses', async () => {
+    const day = await createDay();
+    const id = await addSeriesToDay(day.id);
+    const pull = await exercise('Подтягивания');
+    await addExerciseToSeries(day.id, id, pull);
+    expect((await deleteExercise(pull)).deleted).toBe(false);
+  });
+
+  it('removing a series removes it from the day', async () => {
+    const day = await createDay();
+    const id = await addSeriesToDay(day.id);
+    await removeItem(day.id, id);
+    expect((await getDay(day.id))!.items).toEqual([]);
+  });
+
+  it('starts a workout with the series exercises named', async () => {
+    const day = await createDay();
+    const id = await addSeriesToDay(day.id);
+    await addExerciseToSeries(day.id, id, await exercise('Подтягивания'));
+    const w = (await startOrResumeWorkout(day.id))!;
+    expect(w.exercises.map((e) => [e.name, e.series])).toEqual([['Подтягивания', { number: 1, rounds: 3 }]]);
+    expect(w.steps).toHaveLength(3);
   });
 });

@@ -23,6 +23,11 @@ export function fitText(node: HTMLElement, options: FitOptions = {}) {
   // Observe the parent: the node's own height changes while fitting.
   const observer = new ResizeObserver(fit);
   if (node.parentElement) observer.observe(node.parentElement);
+  // Refit when the text changes: the same element can show another title (the next exercise
+  // in a workout, or a name that loads after the screen). Fitting only touches `style`, which
+  // these options do not watch, so it cannot trigger itself.
+  const textObserver = new MutationObserver(fit);
+  textObserver.observe(node, { childList: true, characterData: true, subtree: true });
   document.fonts?.ready.then(fit);
   fit();
 
@@ -33,6 +38,7 @@ export function fitText(node: HTMLElement, options: FitOptions = {}) {
     },
     destroy() {
       observer.disconnect();
+      textObserver.disconnect();
     },
   };
 }

@@ -20,10 +20,11 @@ test.beforeEach(async ({ page }) => {
 async function finishNextWorkout(page: Page) {
   await page.goto('./');
   await page.getByRole('button', { name: /начать тренировку/i }).click();
-  const counter = page.getByText(/упражнение 1 из \d+/i);
-  await expect(counter).toBeVisible();
-  const total = Number((await counter.textContent())!.match(/из (\d+)/i)![1]);
-  for (let i = 0; i < total; i++) await page.getByRole('button', { name: /пропустить упражнение/i }).click();
+  // One skip per item: «Пропустить упражнение», or «Пропустить серию» for a series.
+  const progress = page.getByRole('progressbar');
+  await expect(progress).toBeVisible();
+  const total = Number(await progress.getAttribute('aria-valuemax'));
+  for (let i = 0; i < total; i++) await page.getByRole('button', { name: /пропустить (упражнение|серию)/i }).click();
   await expect(page.getByText(/тренировка завершена/i)).toBeVisible();
 }
 

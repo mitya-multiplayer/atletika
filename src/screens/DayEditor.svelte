@@ -2,8 +2,9 @@
   import Sortable from 'sortablejs';
   import { onDestroy, onMount } from 'svelte';
   import runner from '../assets/illustrations/runner.webp';
-  import { dayQuery, exercisesQuery, moveDayItem, removeItem, renameDay } from '../lib/db/repo';
-  import { dayNumber, dayTitle, setsSummary } from '../lib/domain/format';
+  import { addSeriesToDay, dayQuery, exercisesQuery, moveDayItem, removeItem, renameDay } from '../lib/db/repo';
+  import { dayNumber, dayTitle, formatRest, setsSummary } from '../lib/domain/format';
+  import { roundsLabel, seriesNumber, seriesTitle } from '../lib/domain/series';
   import type { DayItem } from '../lib/domain/types';
   import { navigate } from '../lib/router.svelte';
   import Button from '../lib/ui/Button.svelte';
@@ -78,12 +79,24 @@
   });
 
   async function remove(item: DayItem) {
-    const confirmed = await confirmAction({
-      title: `Убрать «${names.get(item.exerciseId) ?? 'упражнение'}» из дня?`,
-      message: 'Упражнение останется в библиотеке.',
-      confirmLabel: 'Убрать',
-    });
+    const confirmed =
+      item.kind === 'exercise'
+        ? await confirmAction({
+            title: `Убрать «${names.get(item.exerciseId) ?? 'упражнение'}» из дня?`,
+            message: 'Упражнение останется в библиотеке.',
+            confirmLabel: 'Убрать',
+          })
+        : await confirmAction({
+            title: `Удалить ${seriesTitle(seriesNumber($day?.items ?? [], item.id))}?`,
+            message: 'Упражнения серии останутся в библиотеке.',
+            confirmLabel: 'Удалить',
+          });
     if (confirmed) await removeItem(dayId, item.id);
+  }
+
+  async function addSeries() {
+    const itemId = await addSeriesToDay(dayId);
+    navigate(`/days/${dayId}/series/${itemId}`);
   }
 </script>
 
@@ -119,23 +132,60 @@
       <ul class="stack" bind:this={list}>
         {#each $day.items as item (item.id)}
           <li>
-            <ListRow handle actionsLayout="column">
-              <span class="ex-name">{names.get(item.exerciseId) ?? ''}</span>
-              <span class="summary">{setsSummary(item.sets)}</span>
-              <span class="chips">
-                {#each item.sets as set, i (i)}
-                  <SetChip index={i + 1} reps={set.reps} />
-                {/each}
-              </span>
-              {#snippet actions()}
-                <IconButton
-                  icon="edit"
-                  label="Настроить {names.get(item.exerciseId) ?? ''}"
-                  onclick={() => navigate(`/days/${dayId}/items/${item.id}`)}
-                />
-                <IconButton icon="delete" label="Убрать {names.get(item.exerciseId) ?? ''}" onclick={() => remove(item)} />
-              {/snippet}
-            </ListRow>
+            {#if item.kind === 'exercise'}
+              <ListRow handle actionsLayout="column">
+                <span class="ex-name">{names.get(item.exerciseId) ?? ''}</span>
+                <span class="summary">{setsSummary(item.sets)}</span>
+                <span class="chips">
+                  {#each item.sets as set, i (i)}
+                    <SetChip index={i + 1} reps={set.reps} />
+                  {/each}
+                </span>
+                {#snippet actions()}
+                  <IconButton
+                    icon="edit"
+                    label="Настроить {names.get(item.exerciseId) ?? ''}"
+                    onclick={() => navigate(`/days/${dayId}/items/${item.id}`)}
+                  />
+                  <IconButton icon="delete" label="Убрать {names.get(item.exerciseId) ?? ''}" onclick={() => remove(item)} />
+                {/snippet}
+              </ListRow>
+            {:else}
+              {@const title = seriesTitle(seriesNumber($day.items, item.id))}
+              <!-- Option A (docs/mockups/series-option-a.png): the series is one card, moved as a whole. -->
+              <div class="series-card">
+                <div class="series-top">
+                  <span class="handle" aria-hidden="true"><Icon name="menu" size={22} /></span>
+                  <div class="series-main">
+                    <span class="badge display">Серия</span>
+                    <span class="series-title display">{title}</span>
+                    <span class="series-meta">
+                      <Icon name="reset" size={16} />
+                      <span class="rounds">{roundsLabel(item.rounds)}</span>
+                      <span>· отдых после круга {formatRest(item.roundRestSec)}</span>
+                    </span>
+                  </div>
+                  <div class="series-actions">
+                    <IconButton icon="edit" label="Настроить {title}" onclick={() => navigate(`/days/${dayId}/series/${item.id}`)} />
+                    <IconButton icon="delete" label="Удалить {title}" onclick={() => remove(item)} />
+                  </div>
+                </div>
+                {#if item.exercises.length === 0}
+                  <p class="series-empty">В серии пока нет упражнений.</p>
+                {:else}
+                  <ol class="series-list">
+                    {#each item.exercises as exercise, i (exercise.id)}
+                      <li>
+                        <span class="series-ex">{names.get(exercise.exerciseId) ?? ''}</span>
+                        <span class="series-reps">{exercise.reps}</span>
+                        <!-- After the round's last exercise, the round rest in the header applies. -->
+                        <span class="series-rest">{i < item.exercises.length - 1 ? `отдых ${formatRest(exercise.restSec)}` : ''}</span>
+                      </li>
+                    {/each}
+                  </ol>
+                {/if}
+              </div>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -143,7 +193,7 @@
 
     <div class="actions-bottom">
       <Button variant="secondary" icon="plus" to="/days/{dayId}/add">Добавить упражнение</Button>
-      <Button variant="secondary" icon="plus" to="/days/{dayId}/series">Добавить серию</Button>
+      <Button variant="secondary" icon="plus" onclick={addSeries}>Добавить серию</Button>
     </div>
   {/if}
 </main>
@@ -201,6 +251,114 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 8px;
+  }
+
+  .series-card {
+    border-radius: var(--radius-m);
+    background: var(--c-cream);
+    color: var(--c-ink);
+    overflow: hidden;
+  }
+
+  .series-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 6px 8px 16px;
+    border-bottom: 2px solid var(--c-cream-muted);
+  }
+
+  .series-top .handle {
+    display: grid;
+    place-items: center;
+    align-self: stretch;
+    width: 36px;
+    margin-left: -8px;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .series-main {
+    display: grid;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+    padding: 6px 0;
+  }
+
+  .badge {
+    justify-self: start;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--c-red);
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .series-title {
+    font-size: 26px;
+  }
+
+  .series-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 6px;
+    font-size: var(--fs-label);
+  }
+
+  .series-meta span {
+    white-space: nowrap;
+  }
+
+  .rounds {
+    font-weight: 700;
+    color: #c8101a;
+  }
+
+  .series-actions {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .series-empty {
+    padding: 12px 16px 14px 44px;
+    font-size: var(--fs-label);
+    color: #5c574f;
+  }
+
+  .series-list {
+    padding: 6px 16px 10px 44px;
+    list-style: none;
+  }
+
+  .series-list li {
+    display: grid;
+    grid-template-columns: 1fr auto 76px;
+    align-items: baseline;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--c-cream-muted);
+  }
+
+  .series-list li:last-child {
+    border-bottom: 0;
+  }
+
+  .series-ex {
+    font-weight: 700;
+    font-size: 16px;
+    text-transform: uppercase;
+  }
+
+  .series-reps {
+    font-weight: 700;
+  }
+
+  .series-rest {
+    font-size: var(--fs-small);
+    color: #5c574f;
+    text-align: right;
   }
 
   :global(.sortable-chosen) {
