@@ -6,7 +6,6 @@
   import { navigate } from '../lib/router.svelte';
   import Button from '../lib/ui/Button.svelte';
   import { confirmAction, showMessage } from '../lib/ui/dialog.svelte';
-  import Icon from '../lib/ui/Icon.svelte';
   import IconButton from '../lib/ui/IconButton.svelte';
   import ListRow from '../lib/ui/ListRow.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
@@ -27,22 +26,11 @@
     });
     if (confirmed) await deleteExercise(exercise.id);
   }
-
-  // Entry points are required (spec 4.5); the file format is still OPEN.
-  function notReady(action: 'Импорт' | 'Экспорт') {
-    showMessage(`${action} пока недоступен`, 'Формат файла для импорта и экспорта упражнений ещё не утверждён.');
-  }
 </script>
 
 <main class="screen">
-  <ScreenHeader back={{ to: '/program', label: 'Программа' }} title="Упражнения" art={bars} artLayout="behind">
-    {#snippet aside()}
-      <div class="io">
-        <button type="button" onclick={() => notReady('Импорт')}><Icon name="import" size={22} /><span>Импорт</span></button>
-        <button type="button" onclick={() => notReady('Экспорт')}><Icon name="export" size={22} /><span>Экспорт</span></button>
-      </div>
-    {/snippet}
-  </ScreenHeader>
+  <!-- Export and import are in Settings (docs/DECISIONS.md, 2026-11-07). -->
+  <ScreenHeader back={{ to: '/program', label: 'Программа' }} title="Упражнения" art={bars} artLayout="behind" />
 
   {#if $exercises}
     {#if $exercises.length === 0}
@@ -70,27 +58,6 @@
 </main>
 
 <style>
-  .io {
-    display: flex;
-    gap: 4px;
-  }
-
-  .io button {
-    display: grid;
-    justify-items: center;
-    gap: 2px;
-    min-width: 56px;
-    padding: 4px;
-    border: 0;
-    border-radius: var(--radius-s);
-    /* Dark backing: these sit over the header illustration. */
-    background: rgb(7 7 6 / 0.72);
-    color: var(--c-cream);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
   .ex-name {
     font-weight: 700;
     font-size: var(--fs-name);

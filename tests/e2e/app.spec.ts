@@ -118,7 +118,7 @@ test('exercises can be reordered with the drag handle', async ({ page }) => {
   await expect(rows.nth(1)).toContainText(/жим лёжа/i);
 });
 
-for (const path of ['./', './#/program', './#/days', './#/exercises', './#/exercises/new']) {
+for (const path of ['./', './#/program', './#/days', './#/exercises', './#/exercises/new', './#/settings', './#/settings/rest']) {
   test(`no accessibility violations on ${path}`, async ({ page }) => {
     await loadDemo(page);
     await page.goto(path);

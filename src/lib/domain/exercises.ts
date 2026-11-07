@@ -11,6 +11,14 @@ function normalize(text: string): string {
   return text.toLocaleLowerCase('ru').replaceAll('ё', 'е').trim();
 }
 
+/**
+ * Two exercises with the same key count as the same exercise when importing: case, ё/е and
+ * extra spaces are ignored («Жим  лёжа» = «ЖИМ ЛЕЖА»).
+ */
+export function exerciseNameKey(name: string): string {
+  return normalize(name).replace(/\s+/g, ' ');
+}
+
 /** Case-insensitive search that treats ё and е as the same letter. */
 export function matchesQuery(name: string, query: string): boolean {
   return normalize(name).includes(normalize(query));

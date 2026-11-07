@@ -9,6 +9,7 @@
   import Icon, { ICON_NAMES } from '../lib/ui/Icon.svelte';
   import IconButton from '../lib/ui/IconButton.svelte';
   import ListRow from '../lib/ui/ListRow.svelte';
+  import MenuList from '../lib/ui/MenuList.svelte';
   import ProgressScale from '../lib/ui/ProgressScale.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
   import SetChip from '../lib/ui/SetChip.svelte';
@@ -103,6 +104,16 @@
         {/snippet}
       </ListRow>
     </div>
+  </section>
+
+  <section>
+    <h2 class="num display">Меню</h2>
+    <MenuList
+      items={[
+        { title: 'Отдых: 1:30', hint: 'Время отдыха по умолчанию', to: '/kit' },
+        { title: 'Экспортировать упражнения', hint: 'Сохранить упражнения в файл', onclick: () => {} },
+      ]}
+    />
   </section>
 
   <section>

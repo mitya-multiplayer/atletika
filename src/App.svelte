@@ -14,6 +14,7 @@
   import Program from './screens/Program.svelte';
   import SeriesEditor from './screens/SeriesEditor.svelte';
   import Settings from './screens/Settings.svelte';
+  import SettingsRest from './screens/SettingsRest.svelte';
   import Workout from './screens/Workout.svelte';
   import WorkoutSummary from './screens/WorkoutSummary.svelte';
 
@@ -24,6 +25,7 @@
     ['/workout/:workoutId/summary', WorkoutSummary],
     ['/history', History],
     ['/settings', Settings],
+    ['/settings/rest', SettingsRest],
     ['/program', Program],
     ['/days', Days],
     ['/days/:dayId', DayEditor],

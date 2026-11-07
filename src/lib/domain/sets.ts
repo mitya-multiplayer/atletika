@@ -1,8 +1,9 @@
 import { DEFAULT_SET, DEFAULT_SET_COUNT, REPS_MAX, REPS_MIN, REST_MAX_SEC, REST_MIN_SEC } from './defaults';
 import type { SetConfig } from './types';
 
-export function defaultSets(): SetConfig[] {
-  return Array.from({ length: DEFAULT_SET_COUNT }, () => ({ ...DEFAULT_SET }));
+/** The sets of an exercise newly added to a day; `restSec` is the default rest from Settings. */
+export function defaultSets(restSec: number = DEFAULT_SET.restSec): SetConfig[] {
+  return Array.from({ length: DEFAULT_SET_COUNT }, () => ({ ...DEFAULT_SET, restSec }));
 }
 
 /** Appends a copy of the last set, so a new set starts with familiar values. */

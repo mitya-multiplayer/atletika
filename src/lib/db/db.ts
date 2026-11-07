@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import type { Settings } from '../domain/settings';
 import type { Exercise, TrainingDay, Workout } from '../domain/types';
 import { migrateWorkoutV2 } from '../domain/workout';
 
@@ -6,6 +7,7 @@ export class AtletikaDB extends Dexie {
   exercises!: EntityTable<Exercise, 'id'>;
   days!: EntityTable<TrainingDay, 'id'>;
   workouts!: EntityTable<Workout, 'id'>;
+  settings!: EntityTable<Settings & { id: string }, 'id'>;
 
   constructor(name = 'atletika') {
     super(name);
@@ -31,6 +33,10 @@ export class AtletikaDB extends Dexie {
             delete workout.position;
           }),
       );
+    // v4: app settings, one record (src/lib/domain/settings.ts). Missing values read as defaults.
+    this.version(4).stores({
+      settings: 'id',
+    });
   }
 }
 

@@ -2,6 +2,37 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-07
+
+### Settings (reference `docs/assets/supplied_2026-11-07/settings-screen.webp`; answers spec 4.5 and 4.12 for these items)
+The screen has four groups of rows (title, hint, chevron): «Тренировка», «Экспорт данных», «Импорт данных», «Опасная зона» (red heading). Each row acts at once: no dialog asks what to export or import. The other candidates in spec 4.12 are not approved.
+
+The screen ends with the credit «Made by Mitya Kukharev». The «Для разработки» section (link to the component gallery) shows only on the dev server, not in the published build; the `#/kit` address still works there.
+
+**Default rest** («Отдых: 1:30», «Время отдыха по умолчанию»):
+- The rest after each set of an exercise newly added to a day. Default 1:30, range 0:00–60:00 in 15 s steps.
+- It opens its own screen with the rest stepper; «Сохранить» stores it, back leaves it unchanged.
+- Existing days never change. Series keep their own defaults (2:00 after a round, 0:30 between exercises).
+- Stored in IndexedDB (Dexie v4, table `settings`, one record).
+
+**Export and import.** The Exercise Library no longer has import/export buttons; they are in Settings (this replaces the spec 4.5 entry points).
+- Three files: «Экспортировать упражнения» (the library), «Экспортировать дни» (library and training days, since days need their exercises), «Экспортировать всё» (library, days, every workout including one in progress, and settings).
+- On a phone the file goes to the share sheet («Сохранить в Файлы», a messenger, mail); on a PC, or a browser that cannot share files, it downloads. Closing the share sheet saves nothing.
+- Each import row takes its part of the file chosen, and a confirmation always says what will change, except when nothing would:
+  - «Импортировать упражнения» (any file): adds exercises the library lacks. An exercise with the same name (case, ё/е and extra spaces ignored) stays as it is on the phone.
+  - «Импортировать дни» (a days file or a full backup): adds missing exercises as above and **replaces** all training days. Days from the file use the phone's exercise when the name matches. History and settings do not change.
+  - «Импортировать всё» (a full backup only): **replaces** everything, settings included. The confirmation shows the copy's date and contents.
+- Files: JSON named `atletika-<exercises|days|all>-YYYY-MM-DD.json`, with `app: "atletika"`, `kind` and a `format` number (now 1) so later versions can read older files. A file of another app, from a newer version, damaged, or without the part a row needs is refused, and nothing changes. Import writes all or nothing.
+
+**Danger zone.** Each asks for confirmation with the count and «Это нельзя отменить.»; cancelling changes nothing. With nothing to delete, a message says so instead.
+- «Очистить историю»: deletes every finished workout. A workout in progress stays. The next day then starts again from Day 1.
+- «Удалить дни»: deletes every training day. The library and history stay.
+- «Удалить упражнения»: deletes the whole library. While any day uses an exercise it is refused before asking, naming those days (same rule as deleting one exercise).
+
+Follow-ons applied:
+- Importing or deleting days while a workout is in progress lets it continue: a workout keeps its own copy of its exercises.
+- An imported exercise gets a new id, so it can never overwrite a stored exercise.
+
 ## 2026-11-05
 
 ### Series (answers to spec 4.9)
@@ -75,7 +106,7 @@ The table in spec section 3 mislabels two references:
 
 Known outdated details in references (written rules win):
 - `День 1_ Редактор тренировок.png` shows rep ranges and a cream-filled `ДОБАВИТЬ СЕРИЮ`; both buttons must use the secondary style.
-- `Bold Fitness Exercise Catalog.png` lacks the required import/export actions.
+- `Bold Fitness Exercise Catalog.png` lacks import/export actions; since 2026-11-07 they are in Settings instead.
 
 ### Design tokens sampled from the references
 Median colors across all reference images:
@@ -93,11 +124,11 @@ These are placeholders, isolated in code, until the product decision is made:
 
 | Topic | Draft behavior | Where |
 |---|---|---|
-| New exercise in a day | 10 reps × 3 sets, 1:30 rest each | `src/lib/domain/defaults.ts` |
+| New exercise in a day | 10 reps × 3 sets; rest from Settings (1:30 by default) | `src/lib/domain/defaults.ts`, `src/lib/domain/settings.ts` |
 | Rest stepper | ±15 seconds | `src/lib/domain/defaults.ts` |
 | Exercise selector | Single select: tapping an exercise adds it and opens its set configuration | `src/screens/ExerciseSelect.svelte` |
 | Deleting a library exercise used in days | Blocked, with a message naming the days | `src/lib/db/repo.ts` |
 | Abandoning a workout in progress | Not possible; skipping the remaining exercises finishes it | `src/lib/domain/workout.ts` |
 | Deleting or editing history records | Not possible (spec 4.11 OPEN) | `src/screens/History.svelte` |
 | New series | 3 rounds, 2:00 rest after a round; an exercise added to it: 10 reps, 0:30 rest | `src/lib/domain/series.ts` |
-| Settings | Placeholder screen | `src/screens/Settings.svelte` |
+| Settings | Default rest, export, import and danger zone only; the other candidates in spec 4.12 are not approved | `src/screens/Settings.svelte` |

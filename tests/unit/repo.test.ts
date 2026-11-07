@@ -28,6 +28,7 @@ import type { ExerciseItem, SeriesItem } from '../../src/lib/domain/types';
 import { completeSet, finish, skipExercise } from '../../src/lib/domain/workout';
 
 beforeEach(async () => {
+  await db.settings.clear();
   await db.exercises.clear();
   await db.days.clear();
   await db.workouts.clear();
@@ -261,8 +262,35 @@ describe('database upgrade', () => {
     expect(await v2.exercises.get('e1')).toMatchObject({ name: 'Жим лёжа' });
     expect(await v2.days.get('d1')).toMatchObject({ name: 'Верх тела' });
     expect(await v2.workouts.count()).toBe(0);
-    expect(v2.verno).toBe(3);
+    expect(v2.verno).toBe(4);
     v2.close();
+    await Dexie.delete(name);
+  });
+
+  it('v4 keeps version 3 data and adds an empty settings table', async () => {
+    const name = 'atletika-upgrade-v3-test';
+    await Dexie.delete(name);
+    const v3 = new Dexie(name);
+    v3.version(1).stores({ exercises: 'id, name', days: 'id, position' });
+    v3.version(2).stores({ workouts: 'id, startedAt, finishedAt' });
+    v3.version(3).stores({});
+    const workout = {
+      id: 'w1', dayId: 'd1', dayNumber: 1, dayName: 'Верх тела', startedAt: 1000, finishedAt: 2000,
+      exercises: [{ exerciseId: 'e1', name: 'Жим лёжа', skipped: false, block: 0, series: null, sets: [{ reps: 8, done: true }] }],
+      steps: [{ exercise: 0, set: 0, restSec: 90 }], step: 1, rest: null,
+    };
+    await v3.table('exercises').add({ id: 'e1', name: 'Жим лёжа', description: 'Лопатки сведены', videoUrl: '', createdAt: 1 });
+    await v3.table('days').add({ id: 'd1', position: 0, name: 'Верх тела', items: [], createdAt: 1 });
+    await v3.table('workouts').add(workout);
+    v3.close();
+
+    const v4 = new AtletikaDB(name);
+    expect(v4.verno).toBe(4);
+    expect(await v4.exercises.get('e1')).toMatchObject({ description: 'Лопатки сведены' });
+    expect(await v4.days.get('d1')).toMatchObject({ name: 'Верх тела' });
+    expect(await v4.workouts.get('w1')).toEqual(workout);
+    expect(await v4.settings.count()).toBe(0);
+    v4.close();
     await Dexie.delete(name);
   });
 });

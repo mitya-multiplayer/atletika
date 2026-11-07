@@ -60,6 +60,7 @@
   p {
     margin-top: 12px;
     color: var(--c-text-muted);
+    white-space: pre-line;
   }
 
   .buttons {

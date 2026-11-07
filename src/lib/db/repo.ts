@@ -1,8 +1,11 @@
 import { liveQuery } from 'dexie';
+import { makeBackup, planImport, type BackupFile, type BackupKind, type ImportPlan } from '../domain/backup';
 import { sortByName, type ExerciseInput } from '../domain/exercises';
 import { moveItem } from '../domain/order';
 import { addSeriesExercise, exerciseIdsOf, newSeries, newSeriesExercise } from '../domain/series';
+import { REST_MAX_SEC, REST_MIN_SEC } from '../domain/defaults';
 import { defaultSets } from '../domain/sets';
+import { SETTINGS_ID, readSettings, type Settings } from '../domain/settings';
 import type { Exercise, Id, SeriesItem, SetConfig, TrainingDay, Workout } from '../domain/types';
 import { createWorkout } from '../domain/workout';
 import { db } from './db';
@@ -91,8 +94,9 @@ export async function deleteDay(id: Id): Promise<void> {
 
 export async function addExerciseToDay(dayId: Id, exerciseId: Id): Promise<Id> {
   const itemId = newId();
+  const { defaultRestSec } = await getSettings();
   await modifyDay(dayId, (day) => ({
-    items: [...day.items, { kind: 'exercise', id: itemId, exerciseId, sets: defaultSets() }],
+    items: [...day.items, { kind: 'exercise', id: itemId, exerciseId, sets: defaultSets(defaultRestSec) }],
   }));
   return itemId;
 }
@@ -197,3 +201,95 @@ export async function saveWorkout(workout: Workout): Promise<void> {
 
 /** History: finished workouts, newest first. A workout in progress has no finishedAt key, so it is left out. */
 export const finishedWorkoutsQuery = () => liveQuery(() => db.workouts.orderBy('finishedAt').reverse().toArray());
+
+// ---- Settings ----
+
+export async function getSettings(): Promise<Settings> {
+  return readSettings(await db.settings.get(SETTINGS_ID));
+}
+
+export const settingsQuery = () => liveQuery(getSettings);
+
+export async function setDefaultRest(restSec: number): Promise<void> {
+  const clamped = Math.min(REST_MAX_SEC, Math.max(REST_MIN_SEC, Math.round(restSec)));
+  const settings = readSettings({ ...(await getSettings()), defaultRestSec: clamped });
+  await db.settings.put({ ...settings, id: SETTINGS_ID });
+}
+
+// ---- Export and import (src/lib/domain/backup.ts) ----
+
+export async function exportBackup(kind: BackupKind, now = Date.now()): Promise<BackupFile> {
+  return db.transaction('r', [db.exercises, db.days, db.workouts, db.settings], async () =>
+    makeBackup(
+      kind,
+      {
+        exercises: await db.exercises.toArray(),
+        days: await db.days.toArray(),
+        workouts: await db.workouts.toArray(),
+        settings: await getSettings(),
+      },
+      now,
+    ),
+  );
+}
+
+/** What importing with this row would do now, for the confirmation; nothing is written. */
+export async function previewImport(backup: BackupFile, kind: BackupKind): Promise<ImportPlan> {
+  return planImport(backup, kind, await db.exercises.toArray(), newId);
+}
+
+/**
+ * Imports a file read by `parseBackup` with an import row (check `importProblem` first),
+ * all or nothing. Returns what was written.
+ */
+export async function importBackup(backup: BackupFile, kind: BackupKind): Promise<ImportPlan> {
+  return db.transaction('rw', [db.exercises, db.days, db.workouts, db.settings], async () => {
+    const plan = planImport(backup, kind, await db.exercises.toArray(), newId);
+    if (plan.kind === 'all') {
+      await Promise.all([db.exercises.clear(), db.days.clear(), db.workouts.clear(), db.settings.clear()]);
+      await db.workouts.bulkAdd(plan.workouts ?? []);
+      await db.settings.put({ ...plan.settings!, id: SETTINGS_ID });
+    }
+    if (plan.kind === 'program') await db.days.clear();
+    await db.exercises.bulkAdd(plan.exercises);
+    await db.days.bulkAdd(plan.days ?? []);
+    return plan;
+  });
+}
+
+// ---- Danger zone (Settings) ----
+
+export async function dataCounts(): Promise<{ exercises: number; days: number; finishedWorkouts: number }> {
+  return db.transaction('r', db.exercises, db.days, db.workouts, async () => ({
+    exercises: await db.exercises.count(),
+    days: await db.days.count(),
+    // A workout in progress has no finishedAt key, so the index leaves it out.
+    finishedWorkouts: await db.workouts.orderBy('finishedAt').count(),
+  }));
+}
+
+/** Deletes every finished workout. A workout in progress stays. */
+export async function clearHistory(): Promise<void> {
+  await db.workouts.filter((workout) => workout.finishedAt !== null).delete();
+}
+
+/** Deletes every training day. Library and history stay; a workout in progress keeps its own copy. */
+export async function deleteAllDays(): Promise<void> {
+  await db.days.clear();
+}
+
+/** Days that use any library exercise, in order. */
+export async function daysUsingExercises(): Promise<TrainingDay[]> {
+  const days = await db.days.orderBy('position').toArray();
+  return days.filter((day) => day.items.some((item) => exerciseIdsOf(item).length > 0));
+}
+
+/** Deletes the whole library, unless a day uses one of its exercises (as for deleting one exercise). */
+export async function deleteAllExercises(): Promise<DeleteExerciseResult> {
+  return db.transaction('rw', db.exercises, db.days, async () => {
+    const usedIn = await daysUsingExercises();
+    if (usedIn.length > 0) return { deleted: false, usedIn };
+    await db.exercises.clear();
+    return { deleted: true };
+  });
+}

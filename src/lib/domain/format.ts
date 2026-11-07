@@ -1,3 +1,4 @@
+import { pluralRu } from './series';
 import type { SetConfig, TrainingDay } from './types';
 
 export function dayNumber(day: Pick<TrainingDay, 'position'>): number {
@@ -43,4 +44,16 @@ export function formatDateParts(timestamp: number): { day: string; month: string
   const month = MONTHS[date.getMonth()];
   const year = String(date.getFullYear());
   return { day, month, year, full: `${day} ${month} ${year}` };
+}
+
+export function countExercises(n: number): string {
+  return `${n} ${pluralRu(n, 'упражнение', 'упражнения', 'упражнений')}`;
+}
+
+export function countDays(n: number): string {
+  return `${n} ${pluralRu(n, 'день', 'дня', 'дней')}`;
+}
+
+export function countWorkouts(n: number): string {
+  return `${n} ${pluralRu(n, 'тренировка', 'тренировки', 'тренировок')}`;
 }

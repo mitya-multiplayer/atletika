@@ -62,4 +62,5 @@ Before calling work finished, run and report all of: `npm run check`, `npm test`
 - `ДЕНЬ N` is derived from `position`; deleting a day renumbers the rest. Likewise «Серия N» is derived from the series' order in its day (`seriesNumber`).
 - A day item is an exercise or a series (`item.kind`). Use `exerciseIdsOf(item)` to find the library exercises it uses.
 - A workout is a flat list of steps (`src/lib/domain/workout.ts`); a series interleaves its exercises round by round. Stored workouts changed shape in Dexie v3, migrated by `migrateWorkoutV2`.
+- Export files (`src/lib/domain/backup.ts`) hold stored records field by field. When a stored shape changes, update `parseBackup` too, and raise `BACKUP_FORMAT` while still reading older files: users keep backups for a long time.
 - Generate ids with `newId()` from `repo.ts`: `crypto.randomUUID` is missing on plain-HTTP LAN addresses used for phone testing.
