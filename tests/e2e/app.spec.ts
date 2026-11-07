@@ -127,3 +127,14 @@ for (const path of ['./', './#/program', './#/days', './#/exercises', './#/exerc
     expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 }
+
+test('a day name typed just before leaving the screen is kept', async ({ page }) => {
+  await page.goto('./#/days');
+  await page.getByRole('button', { name: /добавить день/i }).click();
+  await page.getByPlaceholder('Например, Верх тела').fill('Ноги');
+  // Leave at once: before the 400 ms save and without the field losing focus first.
+  await page.evaluate(() => (location.hash = '#/days'));
+  await expect(page.getByRole('listitem').first()).toContainText('Ноги');
+  await page.reload();
+  await expect(page.getByRole('listitem').first()).toContainText('Ноги');
+});

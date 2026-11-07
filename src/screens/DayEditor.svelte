@@ -25,12 +25,18 @@
   // ---- Day name: saved shortly after typing stops, and on leaving the field ----
   let name = $state('');
   let nameLoaded = false;
+  // The id and the name as last loaded or saved, in plain variables: while the screen closes,
+  // the focused field's blur still saves, but the `dayId` prop and `$day` are already gone then.
+  let savedId = '';
+  let savedName = '';
   let nameInput: HTMLInputElement | undefined = $state();
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
     if ($day && !nameLoaded) {
       name = $day.name;
+      savedId = $day.id;
+      savedName = $day.name;
       nameLoaded = true;
     }
   });
@@ -47,7 +53,10 @@
   function saveName() {
     clearTimeout(saveTimer);
     saveTimer = undefined;
-    if ($day && name.trim() !== $day.name) renameDay(dayId, name);
+    if (nameLoaded && name.trim() !== savedName) {
+      savedName = name.trim();
+      renameDay(savedId, name);
+    }
   }
 
   onDestroy(() => {
