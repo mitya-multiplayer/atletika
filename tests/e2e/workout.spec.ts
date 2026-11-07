@@ -2,19 +2,13 @@
 // time; it keeps running in real time otherwise, so timer checks allow a few seconds.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { loadDemo } from './helpers';
+import { loadDemo, sharingResult, stubSharing } from './helpers';
 
 const START = new Date(2026, 10, 5, 18, 40);
 
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: START });
-  // Captures what «Копировать» puts on the clipboard (the real API needs permissions in tests).
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: async (text: string) => void ((window as unknown as { copied: string }).copied = text) },
-    });
-  });
+  await stubSharing(page);
   await loadDemo(page);
   await page.goto('./');
 });
@@ -61,7 +55,7 @@ test.describe('actual repetitions', () => {
   const less = (page: Page) => page.getByRole('button', { name: 'Повторения: меньше' });
   const more = (page: Page) => page.getByRole('button', { name: 'Повторения: больше' });
 
-  test('− and + set the repetitions done; the summary and copy show them', async ({ page }) => {
+  test('− and + set the repetitions done; the summary and shared text show them', async ({ page }) => {
     await startWorkout(page);
     await expect(reps(page)).toHaveText('8');
     await expect(page.getByText(/план/i)).toHaveCount(0);
@@ -83,9 +77,8 @@ test.describe('actual repetitions', () => {
     for (let i = 0; i < 3; i++) await skip(page);
 
     await expect(page.getByRole('listitem').first()).toContainText('6/11/8');
-    await page.getByRole('button', { name: /копировать/i }).click();
-    const copied = await page.evaluate(() => (window as unknown as { copied: string }).copied);
-    expect(copied).toContain('Жим лёжа: 6/11/8');
+    await page.getByRole('button', { name: /поделиться/i }).click();
+    await expect.poll(async () => (await sharingResult(page)).shared).toContain('Жим лёжа: 6/11/8');
   });
 
   test('the adjusted count survives closing the app', async ({ page }) => {
@@ -106,6 +99,129 @@ test.describe('actual repetitions', () => {
     await endRest(page);
     for (let i = 0; i < 4; i++) await skip(page);
     await expect(page.getByRole('listitem').first()).toContainText('0/-/-');
+  });
+});
+
+test.describe('exercise description and video on the set screen', () => {
+  const VIDEO = 'https://www.youtube.com/watch?v=rT7DgCr-3pg';
+  const DESCRIPTION = 'Лопатки сведены, ноги упираются в пол.\nОпускать штангу к нижней части груди.';
+
+  async function describeBenchPress(page: Page, description: string, videoUrl: string) {
+    await page.goto('./#/exercises');
+    await page.getByRole('link', { name: 'Жим лёжа' }).click();
+    await page.getByLabel('Описание').fill(description);
+    await page.getByLabel('Ссылка на видео').fill(videoUrl);
+    await page.getByRole('button', { name: /сохранить/i }).click();
+    await expect(page.getByRole('heading', { level: 1, name: /упражнения/i })).toBeVisible();
+    await page.goto('./');
+  }
+
+  const about = (page: Page) => page.getByRole('region', { name: 'Об упражнении' });
+  const videoLink = (page: Page) => page.getByRole('link', { name: /видео, откроется в браузере/i });
+
+  test('shows the description and a link that opens outside the app', async ({ page }) => {
+    await describeBenchPress(page, DESCRIPTION, VIDEO);
+    await startWorkout(page);
+    await expect(about(page)).toContainText('Лопатки сведены, ноги упираются в пол.');
+    await expect(about(page)).toContainText('Опускать штангу к нижней части груди.');
+    await expect(videoLink(page)).toHaveAttribute('href', VIDEO);
+    await expect(videoLink(page)).toHaveAttribute('target', '_blank');
+    await expect(videoLink(page)).toHaveAttribute('rel', /noopener/);
+    // A plain text link: dotted underline in the text colour, no button outline, an arrow.
+    const style = await videoLink(page).evaluate((a) => {
+      const cs = getComputedStyle(a);
+      return {
+        decoration: cs.textDecorationLine,
+        decorationStyle: cs.textDecorationStyle,
+        decorationColor: cs.textDecorationColor,
+        color: cs.color,
+        border: cs.borderTopStyle,
+      };
+    });
+    expect(style).toMatchObject({ decoration: 'underline', decorationStyle: 'dotted', border: 'none' });
+    expect(style.decorationColor).toBe(style.color);
+    await expect(videoLink(page).locator('svg[data-icon="external"]')).toHaveCount(1);
+    // The link shows the address itself.
+    await expect(videoLink(page).locator('.url')).toHaveText(VIDEO);
+  });
+
+  test('a long address stays on one line, ends in an ellipsis and keeps its arrow', async ({ page }) => {
+    const long = `https://www.youtube.com/watch?v=rT7DgCr-3pg&list=${'PL'.repeat(40)}&index=12&t=95s`;
+    await describeBenchPress(page, '', long);
+    await startWorkout(page);
+    const g = await videoLink(page).evaluate((a) => {
+      const url = a.querySelector('.url') as HTMLElement;
+      const arrow = a.querySelector('svg')!.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(url);
+      return {
+        lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size,
+        truncated: url.scrollWidth > url.clientWidth,
+        ellipsis: getComputedStyle(url).textOverflow,
+        arrowRight: arrow.right,
+        viewport: document.documentElement.clientWidth,
+      };
+    });
+    expect(g.lines).toBe(1);
+    expect(g.truncated).toBe(true);
+    expect(g.ellipsis).toBe('ellipsis');
+    expect(g.arrowRight).toBeLessThanOrEqual(g.viewport);
+    await expect(videoLink(page)).toHaveAttribute('href', new URL(long).href);
+    // Below the exercise name, above the set panel.
+    const name = (await page.getByRole('heading', { level: 1 }).boundingBox())!;
+    const block = (await about(page).boundingBox())!;
+    const panel = (await page.locator('.panel.figures').boundingBox())!;
+    expect(block.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+    expect(block.y + block.height).toBeLessThanOrEqual(panel.y + 1);
+  });
+
+  test('the link opens the video in a new page and the workout stays put', async ({ page, context }) => {
+    await context.route('https://www.youtube.com/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<title>video</title>' }),
+    );
+    await describeBenchPress(page, '', VIDEO);
+    await startWorkout(page);
+    const popupPromise = page.waitForEvent('popup');
+    await videoLink(page).click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(VIDEO);
+    await expect(page).toHaveURL(/#\/workout$/);
+    await expectSet(page, /жим лёжа/i, '1 / 3', 8);
+  });
+
+  test('shows only what the exercise has', async ({ page }) => {
+    await startWorkout(page); // demo exercises have neither
+    await expect(about(page)).toHaveCount(0);
+    await page.getByRole('link', { name: /главная/i }).click();
+
+    await describeBenchPress(page, 'Только описание', '');
+    await page.getByRole('link', { name: /продолжить тренировку/i }).click();
+    await expect(about(page)).toContainText('Только описание');
+    await expect(videoLink(page)).toHaveCount(0);
+  });
+
+  test('library edits show up in a workout in progress', async ({ page }) => {
+    await startWorkout(page);
+    await page.getByRole('link', { name: /главная/i }).click();
+    await describeBenchPress(page, DESCRIPTION, VIDEO);
+    await page.getByRole('link', { name: /продолжить тренировку/i }).click();
+    await expect(videoLink(page)).toBeVisible();
+  });
+
+  test('the rest screen does not show them', async ({ page }) => {
+    await describeBenchPress(page, DESCRIPTION, VIDEO);
+    await startWorkout(page);
+    await complete(page);
+    await expect(page.getByRole('timer')).toBeVisible();
+    await expect(about(page)).toHaveCount(0);
+  });
+
+  test('no accessibility violations with a description and video', async ({ page }) => {
+    await describeBenchPress(page, DESCRIPTION, VIDEO);
+    await startWorkout(page);
+    await page.evaluate(() => document.fonts.ready);
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 });
 
@@ -235,7 +351,7 @@ test('skipping goes straight to the next exercise and is recorded as -/-/-', asy
   await expect(first).toContainText(/пропущено/i);
 });
 
-test('a full workout ends with a summary that copies as text', async ({ page }) => {
+test('a full workout ends with a summary that shares as text', async ({ page }) => {
   await startWorkout(page);
   for (let i = 0; i < 3; i++) {
     await complete(page);
@@ -260,10 +376,10 @@ test('a full workout ends with a summary that copies as text', async ({ page }) 
   await expect(rows.nth(2)).toContainText('-/-/-');
   await expect(rows.nth(3)).toContainText('12/12/12');
 
-  await page.getByRole('button', { name: /копировать/i }).click();
-  await expect(page.getByRole('status')).toHaveText(/скопировано/i);
-  const copied = await page.evaluate(() => (window as unknown as { copied: string }).copied);
-  expect(copied.split('\n')).toEqual([
+  await page.getByRole('button', { name: /поделиться/i }).click();
+  await expect.poll(async () => (await sharingResult(page)).shared).toBeTruthy();
+  const { shared } = await sharingResult(page);
+  expect(shared!.split('\n')).toEqual([
     'Атлетика · День 1 · Верх тела',
     '5 ноя 2026 · 1 мин',
     '',
@@ -303,6 +419,101 @@ test('a day without exercises cannot be started', async ({ page }) => {
   await page.goto('./');
   await page.getByRole('button', { name: /начать тренировку/i }).click();
   await expect(page.getByRole('dialog')).toContainText(/в этом дне нет упражнений/i);
+});
+
+test.describe('sharing the summary', () => {
+  const shareButton = (page: Page) => page.getByRole('button', { name: /поделиться/i });
+  const copyButton = (page: Page) => page.getByRole('button', { name: /копировать/i });
+
+  /** Finishes Day 1 by skipping every exercise, then reloads with the given share sheet. */
+  async function openSummary(
+    page: Page,
+    share: Parameters<typeof stubSharing>[1],
+    clipboard?: Parameters<typeof stubSharing>[2],
+  ) {
+    await startWorkout(page);
+    for (let i = 0; i < 4; i++) await skip(page);
+    await expect(page.getByText(/тренировка завершена/i)).toBeVisible();
+    await stubSharing(page, share, clipboard);
+    await page.reload();
+    await expect(page.getByRole('listitem').first()).toBeVisible();
+  }
+
+  test('«Поделиться» opens the share sheet with the summary text, and copies nothing', async ({ page }) => {
+    await openSummary(page, 'share');
+    await expect(copyButton(page)).toHaveCount(0);
+    await shareButton(page).click();
+    await expect.poll(async () => (await sharingResult(page)).shared).toBeTruthy();
+    const result = await sharingResult(page);
+    expect(result.shared!.split('\n').slice(0, 4)).toEqual([
+      'Атлетика · День 1 · Верх тела',
+      '5 ноя 2026 · 1 мин',
+      '',
+      'Жим лёжа: -/-/-',
+    ]);
+    expect(result.shareCalls).toBe(1);
+    expect(result.copied).toBeUndefined();
+    await expect(page.getByRole('status')).toHaveText('');
+  });
+
+  test('closing the share sheet does nothing', async ({ page }) => {
+    await openSummary(page, 'abort');
+    await shareButton(page).click();
+    await expect.poll(async () => (await sharingResult(page)).shareCalls).toBe(1);
+    const result = await sharingResult(page);
+    expect(result.copied).toBeUndefined();
+    await expect(page.getByRole('status')).toHaveText('');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/summary$/);
+    // It can be opened again.
+    await shareButton(page).click();
+    await expect.poll(async () => (await sharingResult(page)).shareCalls).toBe(2);
+  });
+
+  test('a second tap while the share sheet is open does not open another', async ({ page }) => {
+    await openSummary(page, 'pending');
+    await shareButton(page).click();
+    await expect.poll(async () => (await sharingResult(page)).shareCalls).toBe(1);
+    await shareButton(page).click();
+    await shareButton(page).click();
+    expect((await sharingResult(page)).shareCalls).toBe(1);
+    expect((await sharingResult(page)).copied).toBeUndefined();
+  });
+
+  test('when sharing is refused, the text is copied instead', async ({ page }) => {
+    await openSummary(page, 'fail');
+    await shareButton(page).click();
+    await expect(page.getByRole('status')).toHaveText(/скопировано/i);
+    const result = await sharingResult(page);
+    expect(result.shareCalls).toBe(1);
+    expect(result.copied).toContain('Атлетика · День 1 · Верх тела');
+  });
+
+  test('without a share sheet (e.g. Firefox on a PC) the button copies', async ({ page }) => {
+    await openSummary(page, 'none');
+    await expect(shareButton(page)).toHaveCount(0);
+    await copyButton(page).click();
+    await expect(page.getByRole('status')).toHaveText(/скопировано/i);
+    const result = await sharingResult(page);
+    expect(result.copied!.split('\n')[0]).toBe('Атлетика · День 1 · Верх тела');
+    expect(result.shared).toBeUndefined();
+  });
+
+  test('when copying fails too, the text is shown to copy by hand', async ({ page }) => {
+    await openSummary(page, 'none', 'fail');
+    await copyButton(page).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText(/не удалось скопировать/i);
+    await expect(dialog).toContainText('Атлетика · День 1 · Верх тела');
+    await expect(page.getByRole('status')).toHaveText('');
+  });
+
+  test('no accessibility violations on the summary without a share sheet', async ({ page }) => {
+    await openSummary(page, 'none');
+    await page.evaluate(() => document.fonts.ready);
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
 });
 
 for (const [name, open] of [

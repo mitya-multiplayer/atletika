@@ -25,10 +25,15 @@ Answers to the open questions in spec 4.10:
 3. **No sound or vibration** at the end of rest.
 4. **«ПРОПУСТИТЬ УПРАЖНЕНИЕ» stays.** Sets not done are recorded as `-`, e.g. `-/-/-` for a skipped 3-set exercise.
 5. **Leaving does not pause or cancel.** «← ГЛАВНАЯ» leaves without confirmation; the workout is resumed later from Home («ПРОДОЛЖИТЬ ТРЕНИРОВКУ»). A running rest timer keeps counting while the user is away.
-6. **A summary screen** ends the workout, with a «КОПИРОВАТЬ» button that copies the result as plain text for sending in a message.
+6. **A summary screen** ends the workout, with a «ПОДЕЛИТЬСЯ» button that sends the result as plain text to an app of the user's choice (2026-11-07, replacing «КОПИРОВАТЬ»):
+   - Where the browser has a system share sheet (Web Share API: iPhone, Android, Chrome and Edge on Windows, Safari on Mac), the button opens it with the text.
+   - Where it has none (e.g. Firefox on a PC), the button reads «КОПИРОВАТЬ» and copies the text, showing «Скопировано».
+   - Closing the share sheet without choosing an app does nothing. If sharing fails for another reason, the text is copied instead.
 7. **The next day** is the one after the last completed workout's day, wrapping to Day 1 (was provisional).
 
-8. **Actual repetitions are recorded.** The set screen has − and + around «Повторения», starting at the planned number; «ЗАВЕРШИТЬ ПОДХОД» records what it shows. The summary, history and copied text show actual repetitions. When they differ from the plan, «план N» is shown under the number. Range 0–999.
+8. **Actual repetitions are recorded.** The set screen has − and + around «Повторения», starting at the planned number; «ЗАВЕРШИТЬ ПОДХОД» records what it shows. The summary, history and shared text show actual repetitions. When they differ from the plan, «план N» is shown under the number. Range 0–999.
+
+9. **Description and video on the set screen.** Below the exercise name, when the library exercise has them: the description, then the video address as a plain link (dotted underline, arrow, «…» when long). It opens outside the app (`target="_blank"`): a new browser tab, or Safari/Chrome from the home-screen app. Only http(s) links are shown. Not on the rest screen.
 
 Follow-ons applied in the draft:
 - The final set of the whole workout has no rest: the summary opens right away. A set with 0:00 rest goes straight to the next set.
@@ -40,7 +45,7 @@ Follow-ons applied in the draft:
 - Lists finished workouts only, newest first; a workout in progress is not listed.
 - The newest is a card («ПОСЛЕДНЯЯ ТРЕНИРОВКА»: day name, day number, date, duration, «ПОСМОТРЕТЬ ТРЕНИРОВКУ»); the rest form the list «ПРЕДЫДУЩИЕ ТРЕНИРОВКИ».
 - A workout's date is the day it started.
-- Opening a record shows the workout summary with «КОПИРОВАТЬ» (the spec's history copy capability); back returns to «История».
+- Opening a record shows the workout summary with «ПОДЕЛИТЬСЯ» (the spec's history copy capability; «КОПИРОВАТЬ» where the browser cannot share); back returns to «История».
 
 ## 2026-11-04
 

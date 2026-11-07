@@ -1,7 +1,8 @@
 <!-- Active workout: the current set, or the rest timer after it (REF-01; docs/DECISIONS.md, 2026-11-05). -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getActiveWorkout, saveWorkout } from '../lib/db/repo';
+  import { exercisesQuery, getActiveWorkout, saveWorkout } from '../lib/db/repo';
+  import { videoHref } from '../lib/domain/exercises';
   import type { Workout } from '../lib/domain/types';
   import { seriesTitle } from '../lib/domain/series';
   import {
@@ -85,6 +86,11 @@
   const step = $derived(workout ? currentStep(workout) : undefined);
   const reps = $derived(workout && !workout.rest ? currentReps(workout) : 0);
   const exercise = $derived(workout && step ? workout.exercises[step.exercise] : undefined);
+  // Description and video come from the library, so edits there show here; a workout only stores names.
+  const library = exercisesQuery();
+  const details = $derived(exercise ? $library?.find((e) => e.id === exercise.exerciseId) : undefined);
+  const description = $derived(details?.description.trim() ?? '');
+  const video = $derived(videoHref(details?.videoUrl));
   /** While resting: the step that comes next. */
   const upcoming = $derived.by(() => {
     const next = workout?.rest ? upcomingStep(workout) : undefined;
@@ -129,6 +135,20 @@
         </p>
         <h1 class="exercise display" use:fitText={{ max: 96 }}>{exercise.name}</h1>
       </section>
+
+      {#if description || video}
+        <section class="about" aria-label="Об упражнении">
+          {#if description}<p class="description">{description}</p>{/if}
+          {#if video}
+            <!-- target="_blank": a new tab in a browser; from the home-screen app, Safari or Chrome. -->
+            <a class="video" href={video} target="_blank" rel="noopener noreferrer">
+              <span class="url">{video}</span><Icon name="external" size={13} /><span class="visually-hidden">
+                (видео, откроется в браузере)</span
+              >
+            </a>
+          {/if}
+        </section>
+      {/if}
 
       <div class="panel figures">
         <div>
@@ -312,6 +332,43 @@
     font-weight: 600;
     font-size: 21px;
     line-height: 1.1;
+  }
+
+  /* minmax(0, …): otherwise the column grows to fit a long URL and nothing is cut off. */
+  .about {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    gap: 10px;
+  }
+
+  .description {
+    color: var(--c-cream);
+    font-size: var(--fs-body);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  /* A plain text link: dotted underline in the text colour, arrow for "opens outside the app". */
+  .video {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 6px 0;
+    color: var(--c-cream);
+    font-size: var(--fs-body);
+    text-decoration: underline dotted currentColor;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+
+  /* One line; a long address ends in «…», the arrow stays visible. */
+  .url {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .panel {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchesQuery, sortByName, validateExercise } from '../../src/lib/domain/exercises';
+import { matchesQuery, sortByName, validateExercise, videoHref } from '../../src/lib/domain/exercises';
 import { dayNumber, formatDateParts, formatRest, formatToday, setsSummary } from '../../src/lib/domain/format';
 import { moveItem } from '../../src/lib/domain/order';
 import { nextDay } from '../../src/lib/domain/progression';
@@ -143,5 +143,15 @@ describe('exercises', () => {
     });
     expect(validateExercise({ name: 'Жим', description: '', videoUrl: 'youtube.com/x' }).videoUrl).toBeTruthy();
     expect(validateExercise({ name: 'Жим', description: '', videoUrl: 'https://youtu.be/x' })).toEqual({});
+  });
+
+  it('shows only http(s) video links', () => {
+    expect(videoHref('https://youtu.be/abc')).toBe('https://youtu.be/abc');
+    expect(videoHref('  http://example.com/видео  ')).toBe('http://example.com/%D0%B2%D0%B8%D0%B4%D0%B5%D0%BE');
+    expect(videoHref('')).toBeNull();
+    expect(videoHref(undefined)).toBeNull();
+    expect(videoHref('youtube.com/x')).toBeNull();
+    expect(videoHref('javascript:alert(1)')).toBeNull();
+    expect(videoHref('ftp://example.com/v.mp4')).toBeNull();
   });
 });

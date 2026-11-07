@@ -35,3 +35,12 @@ function isHttpUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * The video link to show for an exercise, or null. Only http(s) links are shown, so a
+ * stored value can never become a `javascript:` or other unsafe link.
+ */
+export function videoHref(videoUrl: string | undefined): string | null {
+  const url = videoUrl?.trim();
+  return url && isHttpUrl(url) ? new URL(url).href : null;
+}

@@ -1,4 +1,4 @@
-<!-- After a workout: what was done, and «Копировать» for sending the result in a message. -->
+<!-- After a workout: what was done, and «Поделиться» for sending the result in a message. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getWorkout } from '../lib/db/repo';
@@ -18,14 +18,32 @@
 
   let workout: Workout | null | undefined = $state();
   let copied = $state(false);
+  let sharing = false;
+
+  // The system share sheet where the browser has one (phones, Chrome/Edge on Windows, Safari
+  // on Mac); elsewhere, such as Firefox on a PC, the button copies instead (docs/DECISIONS.md).
+  const canShare = typeof navigator.share === 'function';
 
   onMount(async () => {
     workout = (await getWorkout(workoutId)) ?? null;
   });
 
-  async function copy() {
-    if (!workout) return;
+  async function share() {
+    if (!workout || sharing) return;
     const text = summaryText(workout);
+    copied = false;
+    if (canShare) {
+      sharing = true;
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (error) {
+        // Closing the share sheet without choosing an app is not an error.
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      } finally {
+        sharing = false;
+      }
+    }
     copied = await copyText(text);
     if (!copied) await showMessage('Не удалось скопировать', text);
   }
@@ -83,7 +101,7 @@
     </ul>
 
     <div class="actions-bottom">
-      <Button onclick={copy}>Копировать</Button>
+      <Button onclick={share}>{canShare ? 'Поделиться' : 'Копировать'}</Button>
       <p class="copied" role="status">{copied ? 'Скопировано' : ''}</p>
       <!-- From History the back button at the top returns there; no second way back. -->
       {#if !fromHistory}

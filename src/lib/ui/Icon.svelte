@@ -1,7 +1,7 @@
 <script lang="ts" module>
   // Paths from docs/assets/visual_assets/icons (64×64 grid, 5.5 stroke), drawn with
   // currentColor so one icon serves both the black and the cream variant.
-  // arrow-left, chevron-right, search, import and export are added in the same style.
+  // arrow-left, chevron-right, search, import, export and external are added in the same style.
   const ICONS = {
     plus: { stroke: 'M32 10v44M10 32h44' },
     minus: { stroke: 'M10 32h44' },
@@ -23,6 +23,8 @@
     search: { stroke: 'M28 10a18 18 0 1 0 0 36a18 18 0 1 0 0-36ZM41 41l14 14' },
     import: { stroke: 'M32 8v32M18 26l14 14 14-14M10 44v10h44V44' },
     export: { stroke: 'M32 40V8M18 22L32 8l14 14M10 44v10h44V44' },
+    // Opens outside the app.
+    external: { stroke: 'M22 12h30v30M52 12L14 50' },
   } satisfies Record<string, { stroke?: string; fill?: string }>;
 
   export type IconName = keyof typeof ICONS;

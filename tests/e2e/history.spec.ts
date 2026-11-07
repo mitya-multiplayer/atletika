@@ -1,18 +1,13 @@
 // History of finished workouts (REF-10; docs/DECISIONS.md, 2026-11-05).
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { loadDemo } from './helpers';
+import { loadDemo, sharingResult, stubSharing } from './helpers';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date(2026, 9, 18, 10, 0) });
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: async (text: string) => void ((window as unknown as { copied: string }).copied = text) },
-    });
-  });
+  await stubSharing(page);
   await loadDemo(page);
 });
 
@@ -97,16 +92,16 @@ test('opening the latest workout shows its results; back returns to History', as
   await expect(page.getByRole('heading', { level: 1, name: /история/i })).toBeVisible();
 });
 
-test('opening an earlier workout shows that workout, and copies it', async ({ page }) => {
+test('opening an earlier workout shows that workout, and shares it', async ({ page }) => {
   await threeWorkouts(page);
   await page.getByRole('link', { name: /18 ОКТ 2026, верх тела/i }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/день 1/i);
   await expect(page.locator('.meta')).toContainText('18 ОКТ 2026');
 
-  await page.getByRole('button', { name: /копировать/i }).click();
-  await expect(page.getByRole('status')).toHaveText(/скопировано/i);
-  const copied = await page.evaluate(() => (window as unknown as { copied: string }).copied);
-  expect(copied.split('\n').slice(0, 2)).toEqual(['Атлетика · День 1 · Верх тела', '18 окт 2026 · 1 мин']);
+  await page.getByRole('button', { name: /поделиться/i }).click();
+  await expect.poll(async () => (await sharingResult(page)).shared).toBeTruthy();
+  const { shared } = await sharingResult(page);
+  expect(shared!.split('\n').slice(0, 2)).toEqual(['Атлетика · День 1 · Верх тела', '18 окт 2026 · 1 мин']);
 
   // Only the back button leads back: no «К истории» or «На главную» at the bottom.
   await expect(page.getByRole('link', { name: /к истории/i })).toHaveCount(0);
