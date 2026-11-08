@@ -138,3 +138,31 @@ test('a day name typed just before leaving the screen is kept', async ({ page })
   await page.reload();
   await expect(page.getByRole('listitem').first()).toContainText('Ноги');
 });
+
+test('text typed into the exercise form while it loads is not overwritten', async ({ page }) => {
+  // Slow down reading one exercise, as on a busy phone: the stored record arrives 500 ms late.
+  await page.addInitScript(() => {
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (this: IDBObjectStore, query: IDBValidKey | IDBKeyRange) {
+      const request = get.call(this, query);
+      // Only plain reads: delaying a read inside a save would let its transaction close.
+      const slow = this.name === 'exercises' && this.transaction.mode === 'readonly' && location.hash.startsWith('#/exercises/');
+      if (!slow) return request;
+      let handler: ((event: Event) => void) | null = null;
+      Object.defineProperty(request, 'onsuccess', { configurable: true, get: () => handler, set: (fn) => (handler = fn) });
+      request.addEventListener('success', (event) => setTimeout(() => handler?.call(request, event), 500));
+      return request;
+    };
+  });
+  await loadDemo(page);
+  await page.goto('./#/exercises');
+  await page.getByRole('link', { name: 'Жим лёжа' }).click();
+  await page.getByLabel('Описание').fill('Лопатки сведены');
+  await expect(page.getByLabel('Название')).toHaveValue('Жим лёжа');
+  await expect(page.getByLabel('Описание')).toHaveValue('Лопатки сведены');
+  await page.getByRole('button', { name: /сохранить/i }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /упражнения/i })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Жим лёжа' }).click();
+  await expect(page.getByLabel('Описание')).toHaveValue('Лопатки сведены');
+});

@@ -19,15 +19,22 @@
   let videoUrl = $state('');
   let errors: ExerciseErrors = $state({});
   let notFound = $state(false);
+  // Editing: the fields appear once the stored exercise is in them, so nothing typed earlier
+  // can be overwritten when it arrives. A new exercise has nothing to load.
+  let loaded = $state(false);
 
   onMount(async () => {
-    if (!exerciseId) return;
+    if (!exerciseId) {
+      loaded = true;
+      return;
+    }
     const exercise = await getExercise(exerciseId);
     if (!exercise) {
       notFound = true;
       return;
     }
     ({ name, description, videoUrl } = exercise);
+    loaded = true;
   });
 
   async function submit(event: SubmitEvent) {
@@ -49,7 +56,7 @@
 
   {#if notFound}
     <p class="empty">Упражнение не найдено.</p>
-  {:else}
+  {:else if loaded}
     <form class="form" onsubmit={submit} novalidate>
       <TextField
         label="Название"
