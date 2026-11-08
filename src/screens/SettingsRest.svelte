@@ -28,9 +28,10 @@
   <ScreenHeader back={{ to: '/settings', label: 'Настройки' }} kicker="Тренировка" title="Отдых" art={gears} />
 
   {#if restSec !== undefined}
-    <div class="card">
+    <div class="panel">
       <Stepper
         label="Отдых после подхода"
+        variant="round"
         value={restSec}
         min={REST_MIN_SEC}
         max={REST_MAX_SEC}
@@ -51,12 +52,13 @@
 </main>
 
 <style>
-  .card {
+  /* Black, outlined like the panels on the workout screen. */
+  .panel {
     position: relative;
-    padding: 12px 16px;
+    padding: 14px 18px 18px;
+    border: 2px solid var(--c-panel-line);
     border-radius: var(--radius-m);
-    background: var(--c-cream);
-    color: var(--c-ink);
+    background: var(--c-bg);
   }
 
   .hint {

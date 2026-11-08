@@ -131,6 +131,18 @@
   </section>
 
   <section>
+    <h2 class="num display">Счётчик на тёмном</h2>
+    <Stepper
+      label="Отдых после подхода"
+      variant="round"
+      value={rest}
+      step={15}
+      format={formatRest}
+      onchange={(v) => (rest = v)}
+    />
+  </section>
+
+  <section>
     <h2 class="num display">Поле ввода</h2>
     <div class="stack">
       <TextField label="Название" required bind:value={fieldValue} placeholder="Введите название упражнения…" />

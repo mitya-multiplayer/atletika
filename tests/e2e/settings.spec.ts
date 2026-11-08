@@ -454,6 +454,35 @@ test.describe('default rest', () => {
     await expect(page.getByRole('group', { name: 'Отдых' }).locator('output')).toHaveText(['1:15', '1:15', '1:15']);
   });
 
+  test('circled − / + on a black panel, like the repetitions during a workout', async ({ page }) => {
+    await open(page);
+    await row(page, 'отдых').click();
+    await expect(restValue(page)).toHaveText('1:30');
+    for (const name of ['Отдых после подхода: меньше', 'Отдых после подхода: больше']) {
+      const button = page.getByRole('button', { name });
+      const look = await button.evaluate((b) => {
+        const cs = getComputedStyle(b);
+        const r = b.getBoundingClientRect();
+        return { radius: cs.borderTopLeftRadius, border: cs.borderTopStyle, color: cs.borderTopColor, bg: cs.backgroundColor, w: r.width, h: r.height };
+      });
+      expect(look).toMatchObject({ radius: '50%', border: 'solid', color: 'rgb(247, 237, 224)', bg: 'rgba(0, 0, 0, 0)' });
+      expect(look.w).toBe(look.h);
+    }
+    const panelBg = await page
+      .getByRole('group', { name: 'Отдых после подхода' })
+      .evaluate((g) => getComputedStyle(g.parentElement!).backgroundColor);
+    expect(panelBg).toBe('rgb(7, 7, 6)');
+    // The value sits centred between the two buttons.
+    const [less, value, more] = await Promise.all([
+      page.getByRole('button', { name: 'Отдых после подхода: меньше' }).boundingBox(),
+      restValue(page).boundingBox(),
+      page.getByRole('button', { name: 'Отдых после подхода: больше' }).boundingBox(),
+    ]);
+    const gapLeft = value!.x - (less!.x + less!.width);
+    const gapRight = more!.x - (value!.x + value!.width);
+    expect(Math.abs(gapLeft - gapRight)).toBeLessThanOrEqual(1);
+  });
+
   test('a full backup brings it back', async ({ page }) => {
     await open(page);
     await row(page, 'отдых').click();
@@ -599,6 +628,32 @@ test.describe('danger zone', () => {
   });
 });
 
+test('row hints are in sentence case, as written; titles are display capitals', async ({ page }) => {
+  await open(page);
+  const hint = row(page, 'экспортировать упражнения').locator('.hint');
+  await expect(hint).toHaveCSS('text-transform', 'none');
+  // innerText applies text-transform, so this is what is on screen.
+  expect(await hint.evaluate((el) => (el as HTMLElement).innerText)).toBe('Сохранить упражнения в файл');
+  await expect(row(page, 'экспортировать упражнения').locator('.title')).toHaveCSS('text-transform', 'uppercase');
+});
+
+test('a confirmation opened by a tap rings no button: focus starts on the dialog', async ({ page }) => {
+  await open(page);
+  await row(page, 'удалить дни').click();
+  await expect(dialog(page)).toBeVisible();
+  // Safari on iPhone drew the red focus ring around the red button that showModal() focused.
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('DIALOG');
+  expect(await page.evaluate(() => !!document.querySelector('dialog :focus-visible'))).toBe(false);
+  await expect(dialog(page)).toHaveCSS('outline-style', 'none');
+  // The keyboard still reaches the buttons, and Escape still cancels.
+  await page.keyboard.press('Tab');
+  await expect(dialog(page).getByRole('button', { name: /^удалить$/i })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog(page)).toBeHidden();
+  await page.goto('./#/days');
+  await expect(page.getByRole('link', { name: /день 1/i }).first()).toBeVisible();
+});
+
 test('the exercise library has no import or export buttons any more', async ({ page }) => {
   await open(page);
   await page.goto('./#/exercises');
@@ -672,6 +727,42 @@ test('the name of the author links to Telegram, styled like the exercise video l
   });
   // «Made by» stays plain.
   await expect(page.locator('footer')).toHaveCSS('color', 'rgb(168, 161, 150)');
+
+  // The underline is drawn, not only styled: at this small size the box that clips a long
+  // link to «…» once cut it off. A strip just under «Kukharev» (no descenders) has cream dots.
+  await link.scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.fonts.ready);
+  const under = await link.locator('.text').evaluate((el) => {
+    const node = el.firstChild!;
+    const at = node.textContent!.indexOf('Kukharev');
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + 'Kukharev'.length);
+    const r = range.getBoundingClientRect();
+    return { x: r.left, y: r.bottom - 0.5, width: r.width, height: 6 };
+  });
+  const png = await page.screenshot({ clip: under });
+  const dots = await page.evaluate(async (data) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${data}`;
+    await img.decode();
+    const canvas = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const px = ctx.getImageData(0, 0, img.width, img.height).data;
+    // Rows (device pixels) with cream dots in them: the full 2 px line, not a clipped sliver.
+    let rows = 0;
+    for (let y = 0; y < img.height; y++) {
+      let bright = 0;
+      for (let x = 0; x < img.width; x++) {
+        const i = (y * img.width + x) * 4;
+        if (px[i] > 150 && px[i + 1] > 150 && px[i + 2] > 150) bright++;
+      }
+      if (bright >= 3) rows++;
+    }
+    return rows / devicePixelRatio;
+  }, png.toString('base64'));
+  expect(dots).toBeGreaterThanOrEqual(1.5);
 
   const popup = context.waitForEvent('page');
   await link.click();

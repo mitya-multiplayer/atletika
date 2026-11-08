@@ -22,12 +22,19 @@ async function startWorkout(page: Page) {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
+/** The rest timer in seconds: «01:30» → 90, «−00:05» → −5. */
+async function timerSeconds(page: Page) {
+  const text = (await page.getByRole('timer').textContent())!;
+  const sign = text.startsWith('−') ? -1 : 1;
+  const [m, s] = text.replace('−', '').split(':').map(Number);
+  return sign * (m * 60 + s);
+}
+
 /** Expects the rest timer to show about `seconds` (it may have run a little), waiting for the screen to update. */
 async function expectTimer(page: Page, seconds: number) {
   await expect
     .poll(async () => {
-      const [m, s] = (await page.getByRole('timer').textContent())!.split(':').map(Number);
-      const shown = m * 60 + s;
+      const shown = await timerSeconds(page);
       return shown >= seconds - 3 && shown <= seconds ? 'ok' : shown;
     })
     .toBe('ok');
@@ -44,7 +51,7 @@ test('starts the next day from home at its first set', async ({ page }) => {
   await startWorkout(page);
   // Demo Day 1: Жим лёжа 8 × 3, Подтягивания 10 × 3, Жим гантелей стоя 10 × 3, Тяга штанги 12 × 3.
   await expect(page.getByText(/упражнение 1 из 4/i)).toBeVisible();
-  await expectSet(page, /жим лёжа/i, '1 / 3', 8);
+  await expectSet(page, /жим лёжа/i, '1/3', 8);
   await expect(page.locator('.day-label')).toContainText(/день 1/i);
   await expect(page.locator('.day-label')).toContainText(/верх тела/i);
   await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
@@ -186,7 +193,7 @@ test.describe('exercise description and video on the set screen', () => {
     const popup = await popupPromise;
     await expect(popup).toHaveURL(VIDEO);
     await expect(page).toHaveURL(/#\/workout$/);
-    await expectSet(page, /жим лёжа/i, '1 / 3', 8);
+    await expectSet(page, /жим лёжа/i, '1/3', 8);
   });
 
   test('shows only what the exercise has', async ({ page }) => {
@@ -228,7 +235,7 @@ test.describe('exercise description and video on the set screen', () => {
 test('the set count stays on one line next to the repetitions controls', async ({ page }) => {
   await startWorkout(page);
   const count = page.locator('.panel.figures .big').first();
-  await expect(count).toHaveText('1 / 3');
+  await expect(count).toHaveText('1/3');
   const lines = await count.evaluate((el) => {
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -251,45 +258,107 @@ test('the set screen buttons fit their labels on one line', async ({ page }) => 
   }
 });
 
-test('finishing a set starts its rest; at 0:00 the next set opens by itself', async ({ page }) => {
+test('the set screen: no shadow under the name, «1/3» tight, the divider spaced, the repetitions centred', async ({ page }) => {
+  await startWorkout(page);
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCSS('text-shadow', 'none');
+
+  const g = await page.locator('.panel.figures').evaluate((panel) => {
+    const [setCol, repsCol] = [...panel.children] as HTMLElement[];
+    const count = setCol.querySelector('.big')!;
+    const range = document.createRange();
+    range.selectNodeContents(count);
+    const text = range.getBoundingClientRect();
+    const divider = repsCol.getBoundingClientRect().left; // its left border
+    const box = (el: Element) => el.getBoundingClientRect();
+    const reps = box(repsCol.querySelector('.reps')!);
+    const less = box(repsCol.querySelector('.adjust')!);
+    const label = box(repsCol.querySelector('.label')!);
+    const cs = getComputedStyle(repsCol);
+    const contentLeft = box(repsCol).left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+    const contentRight = box(repsCol).right - parseFloat(cs.paddingRight);
+    return {
+      countText: count.textContent,
+      gapBefore: divider - text.right,
+      gapAfter: less.left - divider,
+      repsOffCentre: (reps.left + reps.right) / 2 - (contentLeft + contentRight) / 2,
+      labelOffCentre: (label.left + label.right) / 2 - (contentLeft + contentRight) / 2,
+    };
+  });
+  expect(g.countText).toBe('1/3');
+  // Room on both sides of the line between «1/3» and the − button.
+  expect(g.gapBefore).toBeGreaterThanOrEqual(12);
+  expect(g.gapAfter).toBeGreaterThanOrEqual(12);
+  expect(Math.abs(g.repsOffCentre)).toBeLessThanOrEqual(1);
+  expect(Math.abs(g.labelOffCentre)).toBeLessThanOrEqual(1);
+});
+
+test('finishing a set starts its rest; past 0:00 the timer counts on below zero and pulses', async ({ page }) => {
   await startWorkout(page);
   await complete(page);
   await expect(page.getByRole('heading', { name: /отдых/i })).toBeVisible();
   await expectTimer(page, 90);
   await expect(page.getByText(/до следующего подхода/i)).toBeVisible();
   await expect(page.locator('.panel.next')).toContainText(/жим лёжа/i);
+  await expect(page.getByRole('timer')).toHaveCSS('text-shadow', 'none');
+  await expect(page.getByRole('timer')).toHaveCSS('animation-name', 'none');
 
   await page.clock.fastForward(60_000);
   await expectTimer(page, 30);
-  await page.clock.fastForward(31_000);
-  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
-});
+  // The rest does not end by itself.
+  await page.clock.fastForward(35_000);
+  await expectTimer(page, -5);
+  await expect(page.getByRole('timer')).toHaveText(/^−00:0\d$/);
+  await expect(page.getByRole('timer')).toHaveAttribute('aria-label', /отдых окончен/i);
+  await expect(page.getByRole('heading', { name: /отдых/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /завершить подход/i })).toHaveCount(0);
+  // It fades in and out in its own colour, and fits the screen with the minus sign.
+  const timer = page.getByRole('timer');
+  await expect(timer).not.toHaveCSS('animation-name', 'none');
+  await expect(timer).toHaveCSS('color', 'rgb(247, 237, 224)');
+  const fit = await timer.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const r = range.getBoundingClientRect();
+    return { left: r.left, right: r.right, width: document.documentElement.clientWidth };
+  });
+  expect(fit.left).toBeGreaterThanOrEqual(0);
+  expect(fit.right).toBeLessThanOrEqual(fit.width);
 
-test('rest controls: −30 s, +30 s, pause and «Завершить отдых»', async ({ page }) => {
-  await startWorkout(page);
-  await complete(page);
-  await page.getByRole('button', { name: 'Отдых: больше на 30 секунд' }).click();
-  await expectTimer(page, 120);
-  await page.getByRole('button', { name: 'Отдых: меньше на 30 секунд' }).click();
-  await expectTimer(page, 90);
-
-  await page.getByRole('button', { name: 'Пауза' }).click();
-  const frozen = await page.getByRole('timer').textContent();
-  await page.clock.fastForward(120_000);
-  await expect(page.getByRole('timer')).toHaveText(frozen!);
-  await page.getByRole('button', { name: 'Продолжить отдых' }).click();
-  await page.clock.fastForward(10_000);
-  await expectTimer(page, 80);
-
+  await page.clock.fastForward(60_000);
+  await expectTimer(page, -65);
   await endRest(page);
-  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
+  await expectSet(page, /жим лёжа/i, '2/3', 8);
 });
 
-test('−30 s below zero ends the rest', async ({ page }) => {
+test('the rest screen has only «Завершить отдых», right under the timer', async ({ page }) => {
   await startWorkout(page);
   await complete(page);
-  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Отдых: меньше на 30 секунд' }).click();
-  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
+  await expect(page.getByRole('timer')).toBeVisible();
+  for (const name of [/30 секунд/i, /пауза/i, /продолжить отдых/i]) {
+    await expect(page.getByRole('button', { name })).toHaveCount(0);
+  }
+  await expect(page.locator('main').getByRole('button')).toHaveCount(1);
+  const [stage, button, next] = await Promise.all([
+    page.locator('.stage.rest').boundingBox(),
+    page.getByRole('button', { name: /завершить отдых/i }).boundingBox(),
+    page.locator('.panel.next').boundingBox(),
+  ]);
+  // Under the timer block, above the next set.
+  expect(button!.y).toBeGreaterThanOrEqual(stage!.y + stage!.height - 1);
+  expect(button!.y - (stage!.y + stage!.height)).toBeLessThan(40);
+  expect(next!.y).toBeGreaterThan(button!.y + button!.height);
+});
+
+test('an over-run rest stays on screen after closing the app', async ({ page }) => {
+  await startWorkout(page);
+  await complete(page);
+  await expectTimer(page, 90);
+  await page.clock.fastForward(100_000);
+  await page.reload();
+  await expectTimer(page, -10);
+  await endRest(page);
+  await expectSet(page, /жим лёжа/i, '2/3', 8);
 });
 
 test('the last set of an exercise rests before the next exercise', async ({ page }) => {
@@ -302,7 +371,7 @@ test('the last set of an exercise rests before the next exercise', async ({ page
   await expect(page.getByText(/до следующего упражнения/i)).toBeVisible();
   await expect(page.locator('.panel.next')).toContainText(/подтягивания/i);
   await endRest(page);
-  await expectSet(page, /подтягивания/i, '1 / 3', 10);
+  await expectSet(page, /подтягивания/i, '1/3', 10);
   await expect(page.getByText(/упражнение 2 из 4/i)).toBeVisible();
   await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
 });
@@ -320,11 +389,13 @@ test('leaving needs no confirmation; the workout resumes and its rest timer kept
   await page.getByRole('link', { name: /продолжить тренировку/i }).click();
   await expectTimer(page, 30);
 
-  // Away longer than the rest: the next set is open on return.
+  // Away longer than the rest: the timer has run on below zero; the next set waits for the user.
   await page.getByRole('link', { name: /главная/i }).click();
   await page.clock.fastForward(120_000);
   await page.getByRole('link', { name: /продолжить тренировку/i }).click();
-  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
+  await expectTimer(page, -90);
+  await endRest(page);
+  await expectSet(page, /жим лёжа/i, '2/3', 8);
 });
 
 test('the workout survives closing the app', async ({ page }) => {
@@ -332,15 +403,15 @@ test('the workout survives closing the app', async ({ page }) => {
   await complete(page);
   await endRest(page);
   // The screen updates only after the state is saved, so closing now loses nothing.
-  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
+  await expectSet(page, /жим лёжа/i, '2/3', 8);
   await page.reload();
-  await expectSet(page, /жим лёжа/i, '2 / 3', 8);
+  await expectSet(page, /жим лёжа/i, '2/3', 8);
 });
 
 test('skipping goes straight to the next exercise and is recorded as -/-/-', async ({ page }) => {
   await startWorkout(page);
   await skip(page);
-  await expectSet(page, /подтягивания/i, '1 / 3', 10);
+  await expectSet(page, /подтягивания/i, '1/3', 10);
   await expect(page.getByRole('timer')).toHaveCount(0);
 
   for (let i = 0; i < 3; i++) await skip(page);

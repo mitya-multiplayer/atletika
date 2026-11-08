@@ -8,7 +8,6 @@
   import {
     ACTUAL_REPS_MAX,
     ACTUAL_REPS_MIN,
-    adjustRest,
     blockCount,
     blocksDone,
     completeSet,
@@ -17,10 +16,7 @@
     endRest,
     formatTimer,
     isFinished,
-    pauseRest,
-    REST_ADJUST_SEC,
     restRemainingMs,
-    resumeRest,
     setActualReps,
     settle,
     skipExercise,
@@ -46,16 +42,10 @@
         act((w) => settle(w, Date.now()));
       } else workout = null;
     });
-    // The rest timer is a timestamp; this only redraws it and notices when it runs out.
+    // The rest timer is a timestamp; this only redraws it. At 0:00 it counts on below zero
+    // until «Завершить отдых» (docs/DECISIONS.md, 2026-11-08).
     const timer = setInterval(() => (now = Date.now()), 250);
     return () => clearInterval(timer);
-  });
-
-  // The next set opens automatically at 0:00.
-  $effect(() => {
-    if (workout?.rest && workout.rest.pausedRemainingMs === null && now >= workout.rest.endsAt) {
-      act((w) => settle(w, now));
-    }
   });
 
   /** The newest state, possibly still being saved. Every change builds on it, so quick taps add up. */
@@ -108,7 +98,9 @@
   const countOf = (ex: { sets: unknown[]; series: { rounds: number } | null }, set: number) =>
     `${set + 1} из ${ex.series?.rounds ?? ex.sets.length}`;
   const remaining = $derived(workout ? restRemainingMs(workout, now) : 0);
-  const paused = $derived(workout?.rest?.pausedRemainingMs != null);
+  const timerText = $derived(formatTimer(remaining));
+  /** Past 0:00: the timer shows a negative time and pulses. */
+  const over = $derived(timerText.startsWith('−'));
 </script>
 
 <main class="screen workout">
@@ -149,11 +141,11 @@
       <div class="panel figures">
         <div>
           <span class="label">{exercise.series ? 'Круг' : 'Подход'}</span>
-          <span class="big display"
-            ><span class="current">{step!.set + 1}</span> / {exercise.series?.rounds ?? exercise.sets.length}</span
+          <span class="big display count"
+            ><span class="current">{step!.set + 1}</span>/{exercise.series?.rounds ?? exercise.sets.length}</span
           >
         </div>
-        <div>
+        <div class="reps-column">
           <span class="label">Повторения</span>
           <!-- The repetitions actually done: start at the plan, adjusted before «Завершить подход». -->
           <div class="reps" role="group" aria-label="Повторения">
@@ -193,7 +185,13 @@
       <section class="stage rest">
         <AccentStripe class="stage-stripe" />
         <h1 class="display rest-title">Отдых</h1>
-        <p class="timer display" role="timer" aria-label="Осталось {formatTimer(remaining)}">{formatTimer(remaining)}</p>
+        <p
+          class="timer display"
+          class:over
+          class:long={timerText.length > 6}
+          role="timer"
+          aria-label={over ? `Отдых окончен ${timerText.slice(1)} назад` : `Осталось ${timerText}`}
+        >{timerText}</p>
         <p class="until display">
           {nextKind === 'set' ? 'До следующего подхода' : nextKind === 'round' ? 'До следующего круга' : 'До следующего упражнения'}
         </p>
@@ -202,24 +200,8 @@
         </p>
       </section>
 
-      <div class="panel controls">
-        <button type="button" class="round" onclick={() => act((w) => adjustRest(w, -REST_ADJUST_SEC, Date.now()))}>
-          <Icon name="minus" size={28} /><span class="visually-hidden">Отдых: меньше на 30 секунд</span>
-        </button>
-        <button
-          type="button"
-          class="round main"
-          onclick={() => act((w) => (w.rest?.pausedRemainingMs != null ? resumeRest(w, Date.now()) : pauseRest(w, Date.now())))}
-        >
-          <Icon name={paused ? 'play' : 'pause'} size={30} />
-          <span class="visually-hidden">{paused ? 'Продолжить отдых' : 'Пауза'}</span>
-        </button>
-        <button type="button" class="round" onclick={() => act((w) => adjustRest(w, REST_ADJUST_SEC, Date.now()))}>
-          <Icon name="plus" size={28} /><span class="visually-hidden">Отдых: больше на 30 секунд</span>
-        </button>
-        <span class="caption" aria-hidden="true">- 30 с</span>
-        <span class="caption" aria-hidden="true">{paused ? 'Продолжить' : 'Пауза'}</span>
-        <span class="caption" aria-hidden="true">+ 30 с</span>
+      <div class="actions">
+        <Button variant="secondary" onclick={() => act(endRest)}>Завершить отдых</Button>
       </div>
 
       <div class="panel next">
@@ -237,10 +219,6 @@
             <span class="display">{upcoming.exercise.sets[upcoming.step.set].reps}</span>
           </div>
         </div>
-      </div>
-
-      <div class="actions">
-        <Button variant="secondary" onclick={() => act(endRest)}>Завершить отдых</Button>
       </div>
     {/if}
   {/if}
@@ -304,7 +282,6 @@
   .exercise {
     min-width: 0;
     font-size: 72px;
-    text-shadow: 0 2px 0 rgb(7 7 6 / 0.55);
   }
 
   .rest {
@@ -316,11 +293,32 @@
     font-size: 34px;
   }
 
+  /* Sized so «−01:28» (after 0:00) fits the width as well as «01:28». */
   .timer {
-    font-size: clamp(110px, 38vw, 170px);
+    font-size: clamp(90px, 30vw, 146px);
     line-height: 0.9;
     font-variant-numeric: tabular-nums;
-    text-shadow: 0 3px 0 rgb(7 7 6 / 0.55);
+    white-space: nowrap;
+  }
+
+  /* 100 minutes and more over: one digit more. */
+  .timer.long {
+    font-size: clamp(76px, 25vw, 122px);
+  }
+
+  /* Past 0:00 the time counts on below zero and fades in and out, in the same colour. */
+  .timer.over {
+    animation: rest-over 1.6s ease-in-out infinite;
+  }
+
+  @keyframes rest-over {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
   }
 
   .until,
@@ -363,9 +361,19 @@
     gap: 2px;
   }
 
+  /* The same gap on both sides of the divider. */
+  .figures > div:first-child {
+    padding-right: 18px;
+  }
+
   .figures > div + div {
     padding-left: 18px;
     border-left: 1px solid var(--c-panel-line);
+  }
+
+  /* The repetitions, their − / + and «план N» centred in their column. */
+  .reps-column {
+    justify-items: center;
   }
 
   .label {
@@ -426,41 +434,6 @@
   .actions {
     display: grid;
     gap: 12px;
-  }
-
-  .controls {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    justify-items: center;
-    align-items: center;
-    row-gap: 6px;
-  }
-
-  .round {
-    display: grid;
-    place-items: center;
-    width: 64px;
-    height: 64px;
-    border: 2px solid var(--c-cream);
-    border-radius: 50%;
-    background: none;
-    color: var(--c-cream);
-    cursor: pointer;
-  }
-
-  .round.main {
-    width: 76px;
-    height: 76px;
-    border-color: var(--c-cream);
-    background: var(--c-cream);
-    color: var(--c-red);
-  }
-
-  .caption {
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: 15px;
-    text-transform: uppercase;
   }
 
   .next {

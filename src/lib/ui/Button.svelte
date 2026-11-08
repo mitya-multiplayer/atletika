@@ -18,9 +18,12 @@
     $props();
 </script>
 
+<!-- With a trailing icon, the leading one moves to the left edge, 1.5× larger, and the label
+     is centred on the button by itself (Home: ▶ «Начать тренировку» ›). -->
 {#snippet content()}
+  {#if icon && trailing}<span class="leading"><Icon name={icon} size={39} /></span>{/if}
   <span class="group">
-    {#if icon}<Icon name={icon} size={26} />{/if}
+    {#if icon && !trailing}<Icon name={icon} size={26} />{/if}
     <span>{@render children()}</span>
   </span>
   {#if trailing}<span class="trailing"><Icon name={trailing} size={22} /></span>{/if}
@@ -58,9 +61,10 @@
     gap: 14px;
   }
 
-  /* Room for the trailing icon, which is absolutely positioned on the right. */
+  /* Room for the edge icons, absolutely positioned left and right; the same on both sides
+     keeps the label centred. */
   .with-trailing {
-    padding-inline: 48px;
+    padding-inline: 62px;
   }
 
   .primary {
@@ -86,6 +90,12 @@
   .trailing {
     position: absolute;
     right: 18px;
+    display: flex;
+  }
+
+  .leading {
+    position: absolute;
+    left: 16px;
     display: flex;
   }
 </style>

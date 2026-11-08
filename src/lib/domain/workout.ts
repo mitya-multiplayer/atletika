@@ -7,8 +7,6 @@ import { dayNumber, dayTitle } from './format';
 import { seriesTitle } from './series';
 import type { Id, TrainingDay, Workout, WorkoutExercise, WorkoutStep } from './types';
 
-export const REST_ADJUST_SEC = 30;
-
 /** Snapshot of a training day as a new workout; null when the day has nothing to do. */
 export function createWorkout(
   day: TrainingDay,
@@ -137,43 +135,33 @@ export function skipExercise(workout: Workout, now: number): Workout {
   return { ...updated, step: next };
 }
 
-/** «ЗАВЕРШИТЬ ОТДЫХ», or the timer reaching 0:00: the next step opens. */
+/**
+ * «ЗАВЕРШИТЬ ОТДЫХ»: the next step opens. This is the only way a rest ends: at 0:00 the timer
+ * counts on below zero (docs/DECISIONS.md, 2026-11-08).
+ */
 export function endRest(workout: Workout): Workout {
   if (!workout.rest) return workout;
   return { ...workout, step: workout.step + 1, rest: null };
 }
 
+/** Time left in the rest; negative once it has run over. */
 export function restRemainingMs(workout: Workout, now: number): number {
   const rest = workout.rest;
   if (!rest) return 0;
   if (rest.pausedRemainingMs !== null) return rest.pausedRemainingMs;
-  return Math.max(0, rest.endsAt - now);
+  return rest.endsAt - now;
 }
 
-/** Applies elapsed time: a running rest that has run out opens the next step. */
+/** Whether the rest has run past 0:00 (the timer then shows a negative time). */
+export function restOver(workout: Workout, now: number): boolean {
+  return !!workout.rest && restRemainingMs(workout, now) <= 0;
+}
+
+/**
+ * Brings a stored workout up to date when it is opened. The rest has no pause control since
+ * 2026-11-08; a rest paused before then continues from the time it had left.
+ */
 export function settle(workout: Workout, now: number): Workout {
-  const rest = workout.rest;
-  if (rest && rest.pausedRemainingMs === null && now >= rest.endsAt) return endRest(workout);
-  return workout;
-}
-
-/** −30 s / +30 s. Taking the time to zero ends the rest. */
-export function adjustRest(workout: Workout, deltaSec: number, now: number): Workout {
-  const rest = workout.rest;
-  if (!rest) return workout;
-  const remaining = restRemainingMs(workout, now) + deltaSec * 1000;
-  if (remaining <= 0) return endRest(workout);
-  if (rest.pausedRemainingMs !== null) return { ...workout, rest: { ...rest, pausedRemainingMs: remaining } };
-  return { ...workout, rest: { ...rest, endsAt: now + remaining } };
-}
-
-export function pauseRest(workout: Workout, now: number): Workout {
-  const rest = workout.rest;
-  if (!rest || rest.pausedRemainingMs !== null) return workout;
-  return { ...workout, rest: { ...rest, pausedRemainingMs: restRemainingMs(workout, now) } };
-}
-
-export function resumeRest(workout: Workout, now: number): Workout {
   const rest = workout.rest;
   if (!rest || rest.pausedRemainingMs === null) return workout;
   return { ...workout, rest: { endsAt: now + rest.pausedRemainingMs, pausedRemainingMs: null } };
@@ -194,10 +182,15 @@ export function blocksDone(workout: Workout): number {
   return workout.exercises[currentStep(workout).exercise].block;
 }
 
-/** Remaining time as the large timer shows it: 90 000 ms → "01:30". Rounds up. */
+/**
+ * Remaining time as the large timer shows it: 90 000 ms → "01:30", rounding up. Past zero it
+ * counts on with a minus sign (U+2212): −5 000 ms → "−00:05". 00:00 shows for one second.
+ */
 export function formatTimer(ms: number): string {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  const total = Math.ceil(ms / 1000);
+  const abs = Math.abs(total);
+  const text = `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+  return total < 0 ? `−${text}` : text;
 }
 
 export function durationMinutes(workout: Workout): number {

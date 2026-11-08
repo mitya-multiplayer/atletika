@@ -208,7 +208,7 @@ test.describe('series in a workout', () => {
     const right = await page.getByRole('heading', { level: 1 }).evaluate((h) => h.getBoundingClientRect().right);
     expect(right).toBeLessThanOrEqual(await page.evaluate(() => document.documentElement.clientWidth));
     await expect(page.locator('.panel.figures')).toContainText(/круг/i);
-    await expect(page.locator('.panel.figures')).toContainText('1 / 5');
+    await expect(page.locator('.panel.figures')).toContainText('1/5');
     await expect(page.locator('.panel.figures')).toContainText('5');
     await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '3');
     await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
@@ -232,7 +232,10 @@ test.describe('series in a workout', () => {
     await expect(page.locator('.panel.next')).toContainText(/следующий круг/i);
     await expect(page.locator('.which')).toHaveText(/круг 2 из 5/i);
 
-    await page.clock.fastForward(121_000);
+    // Past the round rest the timer runs on below zero until «Завершить отдых».
+    await page.clock.fastForward(125_000);
+    await expect(page.getByRole('timer')).toHaveText(/^−00:0\d$/);
+    await page.getByRole('button', { name: /завершить отдых/i }).click();
     await expect(page.getByText(/серия 1 · круг 2 из 5/i)).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/подтягивания/i);
   });

@@ -6,7 +6,13 @@
 
   $effect(() => {
     if (!element) return;
-    if (dialog.current && !element.open) element.showModal();
+    if (dialog.current && !element.open) {
+      element.showModal();
+      // showModal() focuses the first button, and Safari on iPhone then draws its focus outline
+      // as if the user had tabbed to it: a red ring around the red button. Focus the dialog
+      // itself instead; Tab still reaches the buttons and Escape still cancels.
+      element.focus();
+    }
     if (!dialog.current && element.open) element.close();
   });
 
@@ -19,6 +25,7 @@
 
 <dialog
   bind:this={element}
+  tabindex="-1"
   aria-labelledby="dialog-title"
   oncancel={(event) => {
     event.preventDefault();
@@ -46,6 +53,11 @@
     border-radius: var(--radius-m);
     background: var(--c-bg);
     color: var(--c-cream);
+  }
+
+  /* Its cream border already marks it; focus starts here only so no button is ringed. */
+  dialog:focus {
+    outline: none;
   }
 
   dialog::backdrop {

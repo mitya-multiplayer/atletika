@@ -40,9 +40,13 @@
     height: 0.75em;
   }
 
-  /* One line; a long text ends in «…», the arrow stays visible. */
+  /* One line; a long text ends in «…», the arrow stays visible. The padding keeps the dotted
+     underline inside the box that overflow: hidden clips to (with small text it fell below the
+     line box and vanished); the negative margin gives the space back. */
   .text {
     min-width: 0;
+    padding-bottom: 0.6em;
+    margin-bottom: -0.6em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

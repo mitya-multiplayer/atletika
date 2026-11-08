@@ -26,9 +26,9 @@
 </script>
 
 <main class="screen home">
-  <!-- The brand and date are a layer over the top of the screen; everything else keeps to the
-       bottom. When the screen is too short for a gap, the illustration runs up behind the brand
-       and loses its top, so the screen never scrolls. -->
+  <!-- The brand and date at the top; everything else keeps to the bottom. When the screen is
+       short, the illustration loses its top, cut on a straight line under the brand. Only when
+       even a small strip of it would not fit does the screen scroll; nothing overlaps. -->
   <header class="top">
     <h1 class="brand display" use:fitText={{ max: 120 }}>Атлетика</h1>
     <p class="date display">
@@ -74,34 +74,32 @@
 </main>
 
 <style>
-  /* The gutter on every edge, plus the phone's safe area at the top and bottom. The top
-     padding belongs to the header: the illustration may run up to the very edge. */
-  /* Exactly as tall as the screen. A flex column, not a one-cell grid with align-self: end:
-     WebKit left such a grid item where it was when content loaded into it later, hanging
-     below the screen. */
+  /* At least as tall as the screen; taller (it scrolls) only when the content needs it.
+     A flex column, not a one-cell grid with align-self: end: WebKit left such a grid item where
+     it was when content loaded into it later, hanging below the screen.
+     Bottom: the gutter, or the home indicator's safe area where that is larger. */
   .home {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    height: 100dvh;
+    min-height: 100dvh;
     padding-top: 0;
-    padding-bottom: calc(var(--safe-bottom) + var(--gutter));
+    padding-bottom: max(var(--gutter), var(--safe-bottom));
   }
 
-  /* Opaque and full width: the illustration never shows through the brand and is cut on a
-     straight line below it. The bottom padding makes the gap from the brand's baseline to that
-     line about the one between «Тренировка идёт» and «День N» (baseline to capitals, ~13px). */
+  /* The illustration below is cut on a straight line at the bottom of this box. The bottom
+     padding makes the gap from the brand's baseline to that line about the one between
+     «Тренировка идёт» and «День N» (baseline to capitals, ~13px).
+     Top: the gutter below the safe area, plus --home-top-extra on a phone with a status bar,
+     whose soft edge blurs what lies just under it (iOS 26). */
   .top {
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    z-index: 1;
+    --home-top-extra: min(var(--safe-top), 16px);
     display: flex;
+    flex: none;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding: calc(var(--safe-top) + var(--gutter)) var(--gutter) 11px;
+    margin: 0 calc(-1 * var(--gutter));
+    padding: calc(var(--safe-top) + var(--home-top-extra) + var(--gutter)) var(--gutter) 11px;
     background: var(--c-bg);
   }
 
@@ -128,21 +126,25 @@
     white-space: nowrap;
   }
 
-  /* At most the screen's height; only the illustration may shrink to fit. */
+  /* Fills the rest of the screen; only the illustration gives up height to fit. */
   .bottom {
     display: flex;
-    flex: 0 1 auto;
+    flex: 1 0 auto;
     flex-direction: column;
-    min-height: 0;
     gap: 14px;
   }
 
-  /* Shrinks from the top: the picture stays anchored to its bottom edge, where the athlete is. */
+  .bottom > :not(.hero) {
+    flex: none;
+  }
+
+  /* Takes the height left over and shows the picture from its bottom edge, where the athlete
+     is: a tall screen leaves background above the picture, a short one cuts its top. Never
+     less than a strip of it; below that the screen scrolls. */
   .hero {
-    display: flex;
-    flex: 0 1 auto;
-    align-items: flex-end;
-    min-height: 0;
+    position: relative;
+    flex: 1 1 0;
+    min-height: 96px;
     margin: 0 calc(-1 * var(--gutter));
     overflow: hidden;
   }
@@ -151,7 +153,9 @@
      Lighten raises any black darker than --c-bg to exactly --c-bg, so the picture has no
      visible edge where it meets the background, and leaves every other colour as it is. */
   .hero img {
-    flex: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
     width: 100%;
     height: auto;
     mix-blend-mode: lighten;

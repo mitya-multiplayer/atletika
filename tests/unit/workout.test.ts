@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DayItem, TrainingDay, Workout, WorkoutExercise } from '../../src/lib/domain/types';
 import {
-  adjustRest,
   blockCount,
   blocksDone,
   completeSet,
@@ -15,9 +14,8 @@ import {
   formatTimer,
   isFinished,
   migrateWorkoutV2,
-  pauseRest,
+  restOver,
   restRemainingMs,
-  resumeRest,
   setActualReps,
   settle,
   skipExercise,
@@ -209,12 +207,19 @@ describe('finishing sets and rest', () => {
     expect(restRemainingMs(w, T0 + 30 * SEC)).toBe(60 * SEC);
   });
 
-  it('opens the next set automatically when the rest runs out', () => {
-    let w = completeSet(sample(), T0);
-    expect(settle(w, T0 + 89 * SEC).rest).not.toBeNull();
-    w = settle(w, T0 + 90 * SEC);
-    expect(w.rest).toBeNull();
-    expect(at(w)).toEqual({ exercise: 'Жим лёжа', set: 1 });
+  it('does not end the rest at 0:00: the time left goes negative', () => {
+    const w = completeSet(sample(), T0);
+    expect(restOver(w, T0 + 89 * SEC)).toBe(false);
+    expect(restOver(w, T0 + 90 * SEC)).toBe(true);
+    expect(restRemainingMs(w, T0 + 95 * SEC)).toBe(-5 * SEC);
+    expect(settle(w, T0 + 600 * SEC)).toBe(w);
+    expect(w.rest).not.toBeNull();
+    expect(at(w)).toEqual({ exercise: 'Жим лёжа', set: 0 });
+  });
+
+  it('is not over without a rest', () => {
+    expect(restOver(sample(), T0 + 600 * SEC)).toBe(false);
+    expect(restRemainingMs(sample(), T0)).toBe(0);
   });
 
   it('rests after the last set of an exercise too, before the next exercise', () => {
@@ -249,8 +254,9 @@ describe('finishing sets and rest', () => {
   });
 
   it('keeps counting while the app is closed: the timer is a timestamp', () => {
-    const w = completeSet(sample(), T0);
-    expect(at(settle(w, T0 + 600 * SEC))).toEqual({ exercise: 'Жим лёжа', set: 1 });
+    const w = settle(completeSet(sample(), T0), T0 + 600 * SEC);
+    expect(restRemainingMs(w, T0 + 600 * SEC)).toBe(-510 * SEC);
+    expect(at(w)).toEqual({ exercise: 'Жим лёжа', set: 0 });
   });
 
   it('never mutates its input', () => {
@@ -262,35 +268,34 @@ describe('finishing sets and rest', () => {
   });
 });
 
-describe('rest controls', () => {
+describe('ending the rest', () => {
   const resting = () => completeSet(sample(), T0);
-
-  it('+30 s and −30 s change the remaining time', () => {
-    expect(restRemainingMs(adjustRest(resting(), 30, T0), T0)).toBe(120 * SEC);
-    expect(restRemainingMs(adjustRest(resting(), -30, T0), T0)).toBe(60 * SEC);
-  });
-
-  it('−30 s past zero ends the rest', () => {
-    const w = adjustRest(resting(), -30, T0 + 70 * SEC);
-    expect(w.rest).toBeNull();
-    expect(at(w)).toEqual({ exercise: 'Жим лёжа', set: 1 });
-  });
-
-  it('pause freezes the time left; resume continues from it', () => {
-    const paused = pauseRest(resting(), T0 + 30 * SEC);
-    expect(restRemainingMs(paused, T0 + 500 * SEC)).toBe(60 * SEC);
-    expect(settle(paused, T0 + 500 * SEC).rest).not.toBeNull();
-    const resumed = resumeRest(paused, T0 + 500 * SEC);
-    expect(restRemainingMs(resumed, T0 + 510 * SEC)).toBe(50 * SEC);
-  });
-
-  it('adjusts a paused rest without starting it', () => {
-    const w = adjustRest(pauseRest(resting(), T0), 30, T0);
-    expect(w.rest?.pausedRemainingMs).toBe(120 * SEC);
-  });
 
   it('«Завершить отдых» opens the next set at once', () => {
     expect(at(endRest(resting()))).toEqual({ exercise: 'Жим лёжа', set: 1 });
+  });
+
+  it('«Завершить отдых» after the timer ran over opens the next set too', () => {
+    const w = settle(resting(), T0 + 300 * SEC);
+    expect(restOver(w, T0 + 300 * SEC)).toBe(true);
+    const next = endRest(w);
+    expect(next.rest).toBeNull();
+    expect(at(next)).toEqual({ exercise: 'Жим лёжа', set: 1 });
+  });
+
+  it('ignores «Завершить отдых» when not resting', () => {
+    const w = sample();
+    expect(endRest(w)).toBe(w);
+  });
+
+  it('a rest paused by an earlier version continues from the time it had left', () => {
+    // Stored before 2026-11-08, when the rest screen had a pause button: 60 s left.
+    const paused: Workout = { ...resting(), rest: { endsAt: T0 + 90 * SEC, pausedRemainingMs: 60 * SEC } };
+    const w = settle(paused, T0 + 500 * SEC);
+    expect(w.rest).toEqual({ endsAt: T0 + 560 * SEC, pausedRemainingMs: null });
+    expect(restRemainingMs(w, T0 + 510 * SEC)).toBe(50 * SEC);
+    expect(restRemainingMs(w, T0 + 570 * SEC)).toBe(-10 * SEC);
+    expect(JSON.stringify(paused.rest)).toBe(JSON.stringify({ endsAt: T0 + 90 * SEC, pausedRemainingMs: 60 * SEC }));
   });
 });
 
@@ -388,6 +393,15 @@ describe('results and summary text', () => {
     expect(formatTimer(0)).toBe('00:00');
     expect(formatTimer(-5)).toBe('00:00');
     expect(formatTimer(600 * SEC)).toBe('10:00');
+  });
+
+  it('counts on below zero with a minus sign once the rest has run over', () => {
+    expect(formatTimer(-999)).toBe('00:00'); // 00:00 shows for one second, never «−00:00»
+    expect(formatTimer(-1000)).toBe('−00:01');
+    expect(formatTimer(-1001)).toBe('−00:01');
+    expect(formatTimer(-65 * SEC)).toBe('−01:05');
+    expect(formatTimer(-600 * SEC)).toBe('−10:00');
+    expect(formatTimer(-100 * 60 * SEC)).toBe('−100:00');
   });
 
   it('measures the duration in whole minutes, at least 1', () => {

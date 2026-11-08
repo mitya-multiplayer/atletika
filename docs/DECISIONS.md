@@ -2,6 +2,22 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-08
+
+### Rest timer (replaces Active workout items 2 and the rest controls of 2026-11-05)
+- **The rest never ends by itself.** At 0:00 the timer counts on below zero («−00:05») and fades in and out, in the same colour, until «ЗАВЕРШИТЬ ОТДЫХ». 00:00 shows for one second; the minus is U+2212.
+- **The rest screen has no −30 s, +30 s or pause.** «ЗАВЕРШИТЬ ОТДЫХ» sits right under the timer, above the next set.
+- A rest paused before this change continues from the time it had left when the workout is opened. The stored shape is unchanged (`pausedRemainingMs` stays, always null for new rests), so no schema or backup format change.
+- Unchanged: leaving does not pause; on return the timer shows the time since the rest ended. A set with 0:00 rest still goes straight to the next set; the last set of the workout still has no rest.
+
+### Fixes from a review on the phone
+- Home: when the screen is too short even for a strip of the illustration, the screen scrolls; nothing overlaps (two-line «Программа пуста» ran under «Создать день»). The brand starts 16 px lower on a phone with a status bar (iOS 26 blurs content just under it); the tiles keep to the bottom safe area without an extra gutter.
+- Home: in «▶ НАЧАТЬ ТРЕНИРОВКУ ›» the label is centred on the button, the ▶ is 1.5× larger at the left edge.
+- Set screen: no shadow under the exercise name; «1/3» without spaces; space on both sides of the divider; the repetitions and − / + centred in their column.
+- Settings: row hints in sentence case. Default rest: circled − / + on a black panel, like the workout screen.
+- Dialogs open with focus on the dialog, not its first button (Safari on iPhone ringed the red button).
+- External links: the dotted underline was cut off at small text sizes (the author's name in Settings).
+
 ## 2026-11-07
 
 ### Settings (reference `docs/assets/supplied_2026-11-07/settings-screen.webp`; answers spec 4.5 and 4.12 for these items)
@@ -52,7 +68,7 @@ Follow-ons applied in the draft:
 ### Active workout
 Answers to the open questions in spec 4.10:
 1. **Finishing a set** («ЗАВЕРШИТЬ ПОДХОД») starts that set's rest timer automatically.
-2. **When the rest timer reaches 0:00**, the next set opens automatically. The rest screen keeps the reference controls: −30 s, +30 s, pause, and «ЗАВЕРШИТЬ ОТДЫХ» to end rest early.
+2. ~~**When the rest timer reaches 0:00**, the next set opens automatically. The rest screen keeps the reference controls: −30 s, +30 s, pause, and «ЗАВЕРШИТЬ ОТДЫХ» to end rest early.~~ Replaced 2026-11-08: the timer counts on below zero until «ЗАВЕРШИТЬ ОТДЫХ»; no −30 s, +30 s or pause.
 3. **No sound or vibration** at the end of rest.
 4. **«ПРОПУСТИТЬ УПРАЖНЕНИЕ» stays.** Sets not done are recorded as `-`, e.g. `-/-/-` for a skipped 3-set exercise.
 5. **Leaving does not pause or cancel.** «← ГЛАВНАЯ» leaves without confirmation; the workout is resumed later from Home («ПРОДОЛЖИТЬ ТРЕНИРОВКУ»). A running rest timer keeps counting while the user is away.

@@ -181,16 +181,16 @@ test('the illustration has no visible edge where it meets the background', async
   expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
 });
 
-test('on a short screen nothing scrolls: the illustration loses its top behind the brand', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 560 });
+test('on a short screen the illustration loses its top under the brand; nothing scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 640 });
   await page.evaluate(() => document.fonts.ready);
   const g = await homeGeometry(page);
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(g.viewport.height);
   expect(Math.abs(g.viewport.height - g.tiles.bottom - GUTTER)).toBeLessThan(1);
-  // The picture's frame reaches the top edge; the picture keeps its bottom (the athlete) and
-  // loses its top.
-  expect(Math.abs(g.hero.top)).toBeLessThan(1);
-  expect(g.img.top).toBeLessThan(-1);
+  // The picture's frame starts right under the brand; the picture keeps its bottom (the
+  // athlete) and loses its top.
+  expect(Math.abs(g.hero.top - g.top.bottom)).toBeLessThan(1);
+  expect(g.img.top).toBeLessThan(g.hero.top - 1);
   expect(Math.abs(g.img.bottom - g.hero.bottom)).toBeLessThan(1);
   const drawnAbove = await page.evaluate(() =>
     ['h1.brand', 'p.date'].map((selector) => {
@@ -201,12 +201,44 @@ test('on a short screen nothing scrolls: the illustration loses its top behind t
   expect(drawnAbove).toEqual([true, true]);
 });
 
+test('on a very short screen nothing overlaps: the screen scrolls instead', async ({ page }) => {
+  // «Программа пуста» takes two lines at this width; it once ran under «Создать день».
+  await page.setViewportSize({ width: 375, height: 480 });
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('section.next .day')).toHaveText(/программа пуста/i);
+  const lines = await page.locator('section.next .day').evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+  });
+  expect(lines).toBe(2);
+
+  const boxes = await page.evaluate(() =>
+    ['header.top', '.hero', 'section.next', '.bottom > .btn', 'nav.tiles'].map((selector) => {
+      const r = document.querySelector(selector)!.getBoundingClientRect();
+      return { selector, top: r.top + scrollY, bottom: r.bottom + scrollY, height: r.height };
+    }),
+  );
+  // Each part below the one before it, none drawn over another.
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i].top).toBeGreaterThanOrEqual(boxes[i - 1].bottom - 0.5);
+  // A strip of the picture is left; the rest of the height is scrolled to.
+  expect(boxes[1].height).toBeGreaterThanOrEqual(90);
+  const scroll = await page.evaluate(() => ({ height: document.documentElement.scrollHeight, viewport: innerHeight }));
+  expect(scroll.height).toBeGreaterThan(scroll.viewport);
+  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+  const tiles = await page.locator('nav.tiles').evaluate((el) => el.getBoundingClientRect().bottom);
+  expect(Math.abs(scroll.viewport - tiles - GUTTER)).toBeLessThan(1);
+  await expect(page.getByRole('link', { name: /создать день/i })).toBeInViewport();
+});
+
 test('the illustration never shows under the brand and is cut on a straight line below it', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 560 });
+  await page.setViewportSize({ width: 375, height: 640 });
   await fixDate(page);
   const g = await homeGeometry(page);
   const cut = g.top.bottom;
-  expect(g.hero.top).toBeLessThan(cut - 20);
+  // The picture would reach well above the cut: it is cut there, not merely placed below.
+  expect(Math.abs(g.hero.top - cut)).toBeLessThan(1);
+  expect(g.img.top).toBeLessThan(cut - 20);
 
   // With the brand and date made transparent, the header is plain background, edge to edge.
   const style = await page.addStyleTag({ content: '.top, .top * { color: transparent !important; border-color: transparent !important; }' });
@@ -245,14 +277,48 @@ test('the illustration never shows under the brand and is cut on a straight line
   expect(Math.abs(titleGap - wordsGap)).toBeLessThanOrEqual(1.5);
 });
 
-test('the top and bottom keep clear of the phone safe areas by one gutter', async ({ page }) => {
+test('with phone safe areas: extra room under the status bar, the tiles just above the home indicator', async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 1000 });
   await fixDate(page);
   await fakeSafeArea(page, 59, 34);
-  expect(Math.abs((await inkTop(page, 'h1.brand', 'Т'))! - (59 + GUTTER))).toBeLessThanOrEqual(1);
-  expect(Math.abs((await inkTop(page, 'p.date', 'Н'))! - (59 + GUTTER))).toBeLessThanOrEqual(1);
+  // iOS 26 blurs content just under the status bar: the capitals start one gutter plus 16 px
+  // below the safe area, clear of that edge.
+  const EXTRA = 16;
+  expect(Math.abs((await inkTop(page, 'h1.brand', 'Т'))! - (59 + EXTRA + GUTTER))).toBeLessThanOrEqual(1);
+  expect(Math.abs((await inkTop(page, 'p.date', 'Н'))! - (59 + EXTRA + GUTTER))).toBeLessThanOrEqual(1);
+  // The bottom safe area already keeps clear of the home indicator; no gutter is added to it.
   const g = await homeGeometry(page);
-  expect(Math.abs(g.viewport.height - g.tiles.bottom - (34 + GUTTER))).toBeLessThan(1);
+  expect(Math.abs(g.viewport.height - g.tiles.bottom - 34)).toBeLessThan(1);
+
+  // A small safe area adds only that much at the top, and the gutter stays the least at the bottom.
+  await fakeSafeArea(page, 8, 6);
+  expect(Math.abs((await inkTop(page, 'h1.brand', 'Т'))! - (8 + 8 + GUTTER))).toBeLessThanOrEqual(1);
+  const small = await homeGeometry(page);
+  expect(Math.abs(small.viewport.height - small.tiles.bottom - GUTTER)).toBeLessThan(1);
+});
+
+test('«Начать тренировку»: label centred on the button, a larger ▶ at its left edge', async ({ page }) => {
+  await page.goto('./#/kit');
+  await page.getByRole('button', { name: 'Загрузить демо-данные' }).click();
+  await page.getByRole('button', { name: 'Понятно' }).click();
+  await page.goto('./');
+  const button = page.getByRole('button', { name: /начать тренировку/i });
+  await expect(button).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const g = await button.evaluate((b) => {
+    const box = b.getBoundingClientRect();
+    const label = b.querySelector('.group')!.getBoundingClientRect();
+    const play = b.querySelector('svg[data-icon="play"]')!.getBoundingClientRect();
+    const chevron = b.querySelector('svg[data-icon="chevron-right"]')!.getBoundingClientRect();
+    return { box: [box.left, box.right], label: [label.left, label.right], play: [play.left, play.right, play.width], chevron: [chevron.left, chevron.right] };
+  });
+  const centre = (g.box[0] + g.box[1]) / 2;
+  expect(Math.abs((g.label[0] + g.label[1]) / 2 - centre)).toBeLessThanOrEqual(1);
+  // 1.5 × the 26 px of other button icons, near the left edge as the chevron is near the right.
+  expect(g.play[2]).toBeCloseTo(39, 0);
+  expect(g.play[0] - g.box[0]).toBeLessThanOrEqual(20);
+  expect(g.play[1]).toBeLessThan(g.label[0]);
+  expect(g.chevron[0]).toBeGreaterThan(g.label[1]);
 });
 
 test('the next-workout lines have equal visible gaps', async ({ page }) => {

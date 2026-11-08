@@ -77,9 +77,9 @@
     line-height: 1.1;
   }
 
+  /* Sentence case, as written: only the title is display text. */
   .hint {
     font-size: var(--fs-label);
-    text-transform: uppercase;
     color: var(--c-text-muted);
   }
 </style>
