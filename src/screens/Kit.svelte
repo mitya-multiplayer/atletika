@@ -9,6 +9,7 @@
   import Icon, { ICON_NAMES } from '../lib/ui/Icon.svelte';
   import IconButton from '../lib/ui/IconButton.svelte';
   import ListRow from '../lib/ui/ListRow.svelte';
+  import ExternalLink from '../lib/ui/ExternalLink.svelte';
   import MenuList from '../lib/ui/MenuList.svelte';
   import ProgressScale from '../lib/ui/ProgressScale.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
@@ -114,6 +115,11 @@
         { title: 'Экспортировать упражнения', hint: 'Сохранить упражнения в файл', onclick: () => {} },
       ]}
     />
+  </section>
+
+  <section>
+    <h2 class="num display">Внешняя ссылка</h2>
+    <p><ExternalLink href="https://www.youtube.com/" note="откроется в браузере">https://www.youtube.com/</ExternalLink></p>
   </section>
 
   <section>

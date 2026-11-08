@@ -624,8 +624,8 @@ test('no accessibility violations on the rest screen and with a danger confirmat
 test('the published app shows the author at the bottom and no development section', async ({ page }) => {
   // E2E tests run the production build, the one published to GitHub Pages.
   await open(page);
-  const credit = page.getByText('Made by Mitya Kukharev', { exact: true });
-  await expect(credit).toHaveText('Made by Mitya Kukharev');
+  const credit = page.locator('footer');
+  await expect(credit).toContainText('Made by Mitya Kukharev');
   await credit.scrollIntoViewIfNeeded();
   await expect(credit).toBeInViewport();
   // Last on the screen: below the danger zone.
@@ -638,4 +638,43 @@ test('the published app shows the author at the bottom and no development sectio
   // The component gallery itself still opens by its address.
   await page.goto('./#/kit');
   await expect(page.getByRole('button', { name: 'Загрузить демо-данные' })).toBeVisible();
+});
+
+test('the name of the author links to Telegram, styled like the exercise video link', async ({ page, context }) => {
+  await context.route('https://t.me/**', (route) => route.fulfill({ contentType: 'text/html', body: '<title>t.me</title>' }));
+  await open(page);
+  const link = page.locator('footer').getByRole('link', { name: /mitya kukharev/i });
+  await expect(link).toHaveAccessibleName(/telegram, откроется в приложении или браузере/i);
+  await expect(link).toHaveAttribute('href', 'https://t.me/kd10000');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', /noopener/);
+  await expect(link.locator('.text')).toHaveText('Mitya Kukharev');
+  await expect(link.locator('svg[data-icon="external"]')).toHaveCount(1);
+  // Same look as the video link: cream text, dotted 2 px underline in the text colour, no border.
+  const style = await link.evaluate((a) => {
+    const cs = getComputedStyle(a);
+    return {
+      color: cs.color,
+      decoration: cs.textDecorationLine,
+      decorationStyle: cs.textDecorationStyle,
+      decorationColor: cs.textDecorationColor,
+      thickness: cs.textDecorationThickness,
+      border: cs.borderTopStyle,
+    };
+  });
+  expect(style).toEqual({
+    color: 'rgb(247, 237, 224)',
+    decoration: 'underline',
+    decorationStyle: 'dotted',
+    decorationColor: 'rgb(247, 237, 224)',
+    thickness: '2px',
+    border: 'none',
+  });
+  // «Made by» stays plain.
+  await expect(page.locator('footer')).toHaveCSS('color', 'rgb(168, 161, 150)');
+
+  const popup = context.waitForEvent('page');
+  await link.click();
+  await expect(await popup).toHaveURL('https://t.me/kd10000');
+  await expect(page).toHaveURL(/#\/settings$/);
 });

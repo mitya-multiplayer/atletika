@@ -142,7 +142,7 @@ test.describe('exercise description and video on the set screen', () => {
     expect(style.decorationColor).toBe(style.color);
     await expect(videoLink(page).locator('svg[data-icon="external"]')).toHaveCount(1);
     // The link shows the address itself.
-    await expect(videoLink(page).locator('.url')).toHaveText(VIDEO);
+    await expect(videoLink(page).locator('.text')).toHaveText(VIDEO);
   });
 
   test('a long address stays on one line, ends in an ellipsis and keeps its arrow', async ({ page }) => {
@@ -150,7 +150,7 @@ test.describe('exercise description and video on the set screen', () => {
     await describeBenchPress(page, '', long);
     await startWorkout(page);
     const g = await videoLink(page).evaluate((a) => {
-      const url = a.querySelector('.url') as HTMLElement;
+      const url = a.querySelector('.text') as HTMLElement;
       const arrow = a.querySelector('svg')!.getBoundingClientRect();
       const range = document.createRange();
       range.selectNodeContents(url);

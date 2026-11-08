@@ -32,6 +32,7 @@
   import Button from '../lib/ui/Button.svelte';
   import DayLabel from '../lib/ui/DayLabel.svelte';
   import { fitText } from '../lib/ui/fitText';
+  import ExternalLink from '../lib/ui/ExternalLink.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import ProgressScale from '../lib/ui/ProgressScale.svelte';
 
@@ -140,12 +141,7 @@
         <section class="about" aria-label="Об упражнении">
           {#if description}<p class="description">{description}</p>{/if}
           {#if video}
-            <!-- target="_blank": a new tab in a browser; from the home-screen app, Safari or Chrome. -->
-            <a class="video" href={video} target="_blank" rel="noopener noreferrer">
-              <span class="url">{video}</span><Icon name="external" size={13} /><span class="visually-hidden">
-                (видео, откроется в браузере)</span
-              >
-            </a>
+            <ExternalLink href={video} note="видео, откроется в браузере">{video}</ExternalLink>
           {/if}
         </section>
       {/if}
@@ -337,6 +333,7 @@
   /* minmax(0, …): otherwise the column grows to fit a long URL and nothing is cut off. */
   .about {
     display: grid;
+    font-size: var(--fs-body);
     grid-template-columns: minmax(0, 1fr);
     justify-items: start;
     gap: 10px;
@@ -347,28 +344,6 @@
     font-size: var(--fs-body);
     white-space: pre-line;
     overflow-wrap: anywhere;
-  }
-
-  /* A plain text link: dotted underline in the text colour, arrow for "opens outside the app". */
-  .video {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    max-width: 100%;
-    padding: 6px 0;
-    color: var(--c-cream);
-    font-size: var(--fs-body);
-    text-decoration: underline dotted currentColor;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-  }
-
-  /* One line; a long address ends in «…», the arrow stays visible. */
-  .url {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .panel {

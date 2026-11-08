@@ -27,6 +27,7 @@
   import type { TrainingDay } from '../lib/domain/types';
   import Button from '../lib/ui/Button.svelte';
   import { confirmAction, showMessage } from '../lib/ui/dialog.svelte';
+  import ExternalLink from '../lib/ui/ExternalLink.svelte';
   import MenuList from '../lib/ui/MenuList.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
 
@@ -243,7 +244,11 @@
     </section>
   {/if}
 
-  <footer class="credit">Made by Mitya Kukharev</footer>
+  <footer class="credit">
+    Made by <ExternalLink href="https://t.me/kd10000" note="Telegram, откроется в приложении или браузере"
+      >Mitya Kukharev</ExternalLink
+    >
+  </footer>
 </main>
 
 <style>
