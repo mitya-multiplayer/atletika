@@ -7,7 +7,7 @@
 </script>
 
 <main class="screen">
-  <ScreenHeader back={{ to: '/', label: 'Главная' }} title="Программа" size="hero" />
+  <ScreenHeader back={{ to: '/', label: 'Главная' }} title="Программа" size="hero" backdrop={false} />
 
   <nav class="cards" aria-label="Программа">
     <a class="card days" href="#/days">
@@ -70,9 +70,10 @@
     object-position: 60% center;
   }
 
+  /* The box shape the exercise screens' headers use (app.css), at its base height. */
   .exercises .art {
-    width: 78%;
-    height: 58%;
+    width: calc(var(--bars-art-h) * var(--bars-art-ratio));
+    height: var(--bars-art-h);
     object-position: center top;
   }
 </style>

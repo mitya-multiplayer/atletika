@@ -6,7 +6,13 @@
     plus: { stroke: 'M32 10v44M10 32h44' },
     minus: { stroke: 'M10 32h44' },
     delete: { stroke: 'M12 17h40M22 17V9h20v8M17 17l3 36h24l3-36M27 25v20M37 25v20' },
-    edit: { stroke: 'M10 46l3-12L39 8a6 6 0 0 1 9 0l2 2a6 6 0 0 1 0 9L24 45l-14 1ZM34 13l13 13M10 46l12-3' },
+    // Redrawn 2026-11-08 (the asset's tip was skewed, with a stray stroke inside it, and the
+    // pencil sat off-centre): symmetric about the diagonal x + y = 64, tip at the bottom left,
+    // a line where the sharpened part starts and one at the ferrule, a round end.
+    edit: {
+      stroke:
+        'M10 54L13.54 40.56L41.82 12.28A7 7 0 0 1 51.72 22.18L23.44 50.46ZM13.54 40.56L23.44 50.46M35.45 18.65L45.35 28.55',
+    },
     menu: { stroke: 'M8 14h48M8 32h48M8 50h48' },
     // dumbbell, history and settings: filled, made by scripts/trace-icons.py from the home
     // reference (dumbbell) and docs/assets/supplied_2026-11-04 (chart, gear).
@@ -18,6 +24,9 @@
     reset: { stroke: 'M12 20A22 22 0 1 1 9 36M12 8v13h13' },
     pause: { fill: 'M13 9h12v46H13ZM39 9h12v46H39Z' },
     play: { fill: 'M18 9v46l36-23L18 9Z' },
+    // Share (2026-11-08, from the user's sketch): an arrowhead pointing right, its tail curving
+    // down to a point at the bottom left. Centred: x 6–58, y 8–56.
+    share: { fill: 'M38 8L58 28L38 48V36C22 36 11.5 42 6 56C6.5 35 19 20 38 20Z' },
     'arrow-left': { stroke: 'M54 32H12M28 14L10 32l18 18' },
     'chevron-right': { stroke: 'M24 12l20 20-20 20' },
     search: { stroke: 'M28 10a18 18 0 1 0 0 36a18 18 0 1 0 0-36ZM41 41l14 14' },

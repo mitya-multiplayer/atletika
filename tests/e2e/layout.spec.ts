@@ -2,45 +2,73 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loadDemo, openDemoDay1 } from './helpers';
 
+/** Oswald's metrics in em (src/app.css): a text range's box starts one ascent above the baseline. */
+const ASCENT = 1.193;
+const CAP = 0.81;
+const GUTTER = 18;
+
+type Screen = { name: string; open: (page: Page) => Promise<unknown> };
+
+/** The header illustration, the title's last baseline, and what lies under them. */
 async function headerGeometry(page: Page) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>('header img');
+    const img = document.querySelector<HTMLImageElement>('header .art img');
     return !!img && img.complete && img.naturalWidth > 0;
   });
-  return page.evaluate(() => {
-    const img = document.querySelector<HTMLImageElement>('header img')!;
-    const title = document.querySelector('header h1')!;
-    const art = img.getBoundingClientRect();
-    const text = title.getBoundingClientRect();
-    const overlap = {
-      left: Math.max(art.left, text.left),
-      right: Math.min(art.right, text.right),
-      top: Math.max(art.top, text.top),
-      bottom: Math.min(art.bottom, text.bottom),
-    };
-    const probe = document.elementFromPoint(
-      (overlap.left + overlap.right) / 2,
-      (overlap.top + overlap.bottom) / 2,
-    );
-    const content = title.closest('header')!.nextElementSibling!.getBoundingClientRect();
-    return {
-      viewportWidth: document.documentElement.clientWidth,
-      naturalRatio: img.naturalWidth / img.naturalHeight,
-      renderedRatio: art.width / art.height,
-      art: { top: art.top, left: art.left, right: art.right, bottom: art.bottom },
-      titleBottom: text.bottom,
-      titleOverflow: title.scrollWidth - title.clientWidth,
-      contentTop: content.top,
-      overlapWidth: overlap.right - overlap.left,
-      overlapHeight: overlap.bottom - overlap.top,
-      titleOnTop: probe?.closest('h1') === title,
-    };
-  });
+  return page.evaluate(
+    ([ascent]) => {
+      const art = document.querySelector('header .art')!;
+      const title = document.querySelector('header h1')!;
+      const box = art.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      const lines = [...range.getClientRects()];
+      const last = lines[lines.length - 1];
+      const size = parseFloat(getComputedStyle(title).fontSize);
+      const text = title.getBoundingClientRect();
+      const overlap = {
+        left: Math.max(box.left, text.left),
+        right: Math.min(box.right, text.right),
+        top: Math.max(box.top, text.top),
+        bottom: Math.min(box.bottom, text.bottom),
+      };
+      const probe = document.elementFromPoint((overlap.left + overlap.right) / 2, (overlap.top + overlap.bottom) / 2);
+      const content = title.closest('header')!.nextElementSibling!.getBoundingClientRect();
+      return {
+        viewportWidth: document.documentElement.clientWidth,
+        art: { top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height },
+        baseline: last.top + ascent * size,
+        contentTop: content.top,
+        titleOnTop: overlap.right > overlap.left && overlap.bottom > overlap.top && probe?.closest('h1') === title,
+        titleShadow: getComputedStyle(title).textShadow,
+        topShade: getComputedStyle(art, '::after').backgroundImage,
+        fade: (() => {
+          const cs = getComputedStyle(art) as CSSStyleDeclaration & { webkitMaskImage?: string };
+          return cs.maskImage && cs.maskImage !== 'none' ? cs.maskImage : (cs.webkitMaskImage ?? '');
+        })(),
+      };
+    },
+    [ASCENT],
+  );
 }
 
+// Tall illustrations (runner, gears): from the top edge of the screen, beside the title.
+const BESIDE_SCREENS: Screen[] = [
+  { name: 'Days list', open: (page) => page.goto('./#/days') },
+  { name: 'Settings', open: (page) => page.goto('./#/settings') },
+  { name: 'default rest', open: (page) => page.goto('./#/settings/rest') },
+  {
+    name: 'day editor',
+    open: async (page) => {
+      await loadDemo(page);
+      await openDemoDay1(page);
+    },
+  },
+];
+
 // Every screen with the wide push-up-bars illustration uses artLayout="behind".
-const BEHIND_SCREENS: { name: string; open: (page: Page) => Promise<unknown> }[] = [
+const BEHIND_SCREENS: Screen[] = [
   { name: 'new exercise', open: (page) => page.goto('./#/exercises/new') },
   {
     name: 'new exercise opened from the selector',
@@ -86,7 +114,7 @@ const BEHIND_SCREENS: { name: string; open: (page: Page) => Promise<unknown> }[]
 test.describe('poster titles', () => {
   // A title box taller than its single line means header styles leaked onto it
   // (the "hero" size class once picked up the .hero container's min-height).
-  const HERO_TITLES: { name: string; open: (page: Page) => Promise<unknown> }[] = [
+  const HERO_TITLES: Screen[] = [
     { name: 'Program', open: (page) => page.goto('./#/program') },
     { name: 'History', open: (page) => page.goto('./#/history') },
     {
@@ -113,106 +141,143 @@ test.describe('poster titles', () => {
   }
 });
 
-test.describe('day editor: the runner reaches down behind the day-name field', () => {
-  test('starts at the top of the screen and ends just below the field', async ({ page }) => {
-    await loadDemo(page);
-    await openDemoDay1(page);
-    await expect(page.getByPlaceholder('Например, Верх тела')).toHaveValue('Верх тела');
-    await page.evaluate(() => document.fonts.ready);
-    const g = await page.evaluate(() => {
-      const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
-      const art = box('header .art');
-      const field = box('label.name-field');
-      const probe = document.elementFromPoint(
-        (Math.max(art.left, field.left) + Math.min(art.right, field.right)) / 2,
-        (field.top + field.bottom) / 2,
-      );
-      const back = box('header .bar a');
-      const backProbe = document.elementFromPoint((back.left + back.right) / 2, (back.top + back.bottom) / 2);
-      return {
-        artTop: art.top,
-        backOnTop: !!backProbe?.closest('header .bar a'),
-        artBelowField: art.bottom - field.bottom,
-        artRight: art.right,
-        viewportWidth: document.documentElement.clientWidth,
-        sectionTop: box('h2.section-title').top,
-        artBottom: art.bottom,
-        fieldOnTop: !!probe?.closest('label.name-field'),
-      };
+test.describe('header pictures end about 5 px below the title letters, darkened at the bottom', () => {
+  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS]) {
+    test(`on the ${screen.name} screen`, async ({ page }) => {
+      await screen.open(page);
+      await expect(page.locator('header h1')).toBeVisible();
+      const g = await headerGeometry(page);
+      expect(Math.abs(g.art.bottom - (g.baseline + 5))).toBeLessThanOrEqual(2);
+      // The title is drawn over the picture, without a shadow.
+      expect(g.titleOnTop).toBe(true);
+      expect(g.titleShadow).toBe('none');
+      // A shade at the top (back button, status bar); the lower part fades out by a mask
+      // (82 % faded at 85 % of the height, gone at the bottom edge) so the title reads clearly.
+      expect(g.topShade).toMatch(/linear-gradient/);
+      expect(g.fade).toMatch(/linear-gradient/);
+      expect(g.fade).toMatch(/0\.18\) 85%/);
+      expect(g.fade).toMatch(/(transparent|rgba\(0, 0, 0, 0\)) 100%/);
+      // Clear of the content below; flush with the screen's right edge.
+      expect(g.contentTop - g.art.bottom).toBeGreaterThanOrEqual(8);
+      expect(Math.abs(g.art.right - g.viewportWidth)).toBeLessThan(1);
     });
+  }
 
-    // No empty band: the runner starts at the top edge, behind the back button, which stays usable.
-    expect(Math.abs(g.artTop)).toBeLessThan(1);
-    expect(g.backOnTop).toBe(true);
-    // Ends about 12px below the field and before the «Упражнения» heading.
-    expect(g.artBelowField).toBeGreaterThanOrEqual(6);
-    expect(g.artBelowField).toBeLessThanOrEqual(20);
-    expect(g.artBottom).toBeLessThan(g.sectionTop);
-    // The field stays usable on top of the illustration.
-    expect(g.fieldOnTop).toBe(true);
-    expect(Math.abs(g.artRight - g.viewportWidth)).toBeLessThan(1);
-  });
+  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS]) {
+    test(`the ${screen.name} picture starts at the top edge of the screen`, async ({ page }) => {
+      await screen.open(page);
+      await expect(page.locator('header h1')).toBeVisible();
+      const g = await headerGeometry(page);
+      expect(Math.abs(g.art.top)).toBeLessThan(1);
+    });
+  }
 
-  test('the day-name field still accepts input where it overlaps the runner', async ({ page }) => {
+  // Light parts of a picture (the gear's rim, the runner's floor) once left a thin grey or red
+  // line along its bottom edge: at a fractional device pixel the picture showed through a dark
+  // layer laid over it. The picture now fades out by a mask. Both test projects have
+  // fractional scales (iPhone 3×, Android 2.625×) and positions.
+  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS]) {
+    test(`no light line along the bottom of the ${screen.name} picture`, async ({ page }) => {
+      await screen.open(page);
+      await expect(page.locator('header h1')).toBeVisible();
+      await headerGeometry(page);
+      const strip = await page.evaluate(() => {
+        const art = document.querySelector('header .art')!.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('header h1')!);
+        // Right of the title's letters, so only the picture is measured.
+        const left = Math.max(art.left, Math.max(...[...range.getClientRects()].map((r) => r.right)) + 2);
+        return { x: left, y: art.bottom - 2, width: Math.min(art.right, document.documentElement.clientWidth) - left, height: 2 };
+      });
+      expect(strip.width).toBeGreaterThan(8);
+      const png = await page.screenshot({ clip: strip });
+      const brightest = await page.evaluate(async (data) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${data}`;
+        await img.decode();
+        const canvas = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height });
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const px = ctx.getImageData(0, 0, img.width, img.height).data;
+        let max = 0;
+        for (let i = 0; i < px.length; i += 4) max = Math.max(max, px[i], px[i + 1], px[i + 2]);
+        return max;
+      }, png.toString('base64'));
+      // The background is rgb(7, 7, 6); the old 82 % shade left up to ~60 there.
+      expect(brightest).toBeLessThanOrEqual(16);
+    });
+  }
+
+  test('the day-name field sits below the runner, not over it', async ({ page }) => {
     await loadDemo(page);
     await openDemoDay1(page);
     const field = page.getByPlaceholder('Например, Верх тела');
-    const box = (await field.boundingBox())!;
-    // Click the right end of the field, which lies over the illustration.
-    await page.mouse.click(box.x + box.width - 20, box.y + box.height / 2);
-    await expect(field).toBeFocused();
-    await page.keyboard.press('End');
-    await page.keyboard.type(' и пресс');
-    await expect(field).toHaveValue('Верх тела и пресс');
+    await expect(field).toHaveValue('Верх тела');
+    const g = await headerGeometry(page);
+    const fieldTop = (await page.locator('label.name-field').boundingBox())!.y;
+    expect(fieldTop).toBeGreaterThan(g.art.bottom);
   });
-
-  for (const [name, path] of [
-    ['Days list', './#/days'],
-    ['Settings', './#/settings'],
-  ]) {
-    test(`on the ${name} screen the picture runs from the top edge to the bottom of the header`, async ({ page }) => {
-      await loadDemo(page);
-      await page.goto(path);
-      await expect(page.locator('header h1')).toBeVisible();
-      const g = await page.evaluate(() => {
-        const art = document.querySelector('header .art')!.getBoundingClientRect();
-        const hero = document.querySelector('header .hero')!.getBoundingClientRect();
-        return { top: art.top, bottom: art.bottom - hero.bottom };
-      });
-      expect(Math.abs(g.top)).toBeLessThan(1);
-      expect(Math.abs(g.bottom)).toBeLessThan(1);
-    });
-  }
 });
 
-test.describe('push-up-bars header: illustration on the right, behind the title', () => {
-  for (const screen of BEHIND_SCREENS) {
-    test(`keeps its layout on the ${screen.name} screen`, async ({ page }) => {
-      await screen.open(page);
-      const g = await headerGeometry(page);
+test.describe('push-up bars: the Program card’s box shape, from the top edge, scaled to the header', () => {
+  async function cardArt(page: Page) {
+    await page.goto('./#/program');
+    await page.waitForFunction(() => {
+      const img = document.querySelector<HTMLImageElement>('.card.exercises img');
+      return !!img && img.complete && img.naturalWidth > 0;
+    });
+    return (await page.locator('.card.exercises img').boundingBox())!;
+  }
 
-      // Natural proportions: not stretched (anything wider than the screen is cut off on the left).
-      expect(g.renderedRatio).toBeCloseTo(g.naturalRatio, 1);
-      // From the top edge of the screen, flush with its right edge.
-      expect(Math.abs(g.art.top)).toBeLessThan(1);
-      expect(Math.abs(g.art.right - g.viewportWidth)).toBeLessThan(1);
-      // The title overlaps the illustration and is drawn above it.
-      expect(g.overlapWidth).toBeGreaterThan(0);
-      expect(g.overlapHeight).toBeGreaterThan(0);
-      expect(g.titleOnTop).toBe(true);
-      // The illustration ends just below the title (about 10px) and stays clear of the content.
-      expect(g.art.bottom - g.titleBottom).toBeGreaterThanOrEqual(6);
-      expect(g.art.bottom - g.titleBottom).toBeLessThanOrEqual(14);
-      expect(g.contentTop - g.art.bottom).toBeGreaterThanOrEqual(12);
-      // The title fits the screen width.
-      expect(g.titleOverflow).toBeLessThanOrEqual(1);
+  for (const screen of BEHIND_SCREENS) {
+    test(`on the ${screen.name} screen`, async ({ page }) => {
+      const card = await cardArt(page);
+      await screen.open(page);
+      await expect(page.locator('header h1')).toBeVisible();
+      await headerGeometry(page);
+      const img = (await page.locator('header .art img').boundingBox())!;
+      // The same shape as the card's picture, never smaller; a taller header shows it larger.
+      expect(img.width / img.height).toBeCloseTo(card.width / card.height, 1);
+      expect(img.height).toBeGreaterThanOrEqual(card.height - 1);
+      // The same crop: the top of the bars, not stretched.
+      const fit = await page.locator('header .art img').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return [cs.objectFit, cs.objectPosition];
+      });
+      expect(fit).toEqual(['cover', '50% 0%']);
     });
   }
+
+  test('a one-line title shows it exactly at the card’s size', async ({ page }) => {
+    const card = await cardArt(page);
+    await loadDemo(page);
+    await page.goto('./#/exercises');
+    await expect(page.getByRole('listitem').first()).toBeVisible();
+    await headerGeometry(page);
+    const img = (await page.locator('header .art img').boundingBox())!;
+    expect(Math.abs(img.width - card.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(img.height - card.height)).toBeLessThanOrEqual(1);
+  });
+
+  test('a title on two lines («Новое упражнение»): larger, still from the top edge to just below the title', async ({ page }) => {
+    const card = await cardArt(page);
+    await page.goto('./#/exercises/new');
+    await expect(page.locator('header h1')).toBeVisible();
+    const g = await headerGeometry(page);
+    const lines = await page.locator('header h1').evaluate((h) => {
+      const range = document.createRange();
+      range.selectNodeContents(h);
+      return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+    });
+    expect(lines).toBe(2);
+    expect(Math.abs(g.art.top)).toBeLessThan(1);
+    expect(Math.abs(g.art.bottom - (g.baseline + 5))).toBeLessThanOrEqual(2);
+    expect(g.art.height).toBeGreaterThan(card.height + 10);
+  });
 });
 
 test.describe('headers without an illustration: black-and-red background image', () => {
-  const PLAIN_SCREENS: { name: string; open: (page: Page) => Promise<unknown> }[] = [
-    { name: 'Program', open: (page) => page.goto('./#/program') },
+  const PLAIN_SCREENS: Screen[] = [
     { name: 'History', open: (page) => page.goto('./#/history') },
     {
       name: 'Workout summary',
@@ -256,7 +321,7 @@ test.describe('headers without an illustration: black-and-red background image',
           viewport: document.documentElement.clientWidth,
           titleOnTop: !!at(title)?.closest('header h1'),
           backOnTop: !!at(back)?.closest('header .bar a'),
-          oldStripe: document.querySelectorAll('header .lone-stripe').length,
+          titleShadow: getComputedStyle(document.querySelector('header h1')!).textShadow,
         };
       });
       expect(Math.abs(g.top)).toBeLessThan(1);
@@ -265,9 +330,17 @@ test.describe('headers without an illustration: black-and-red background image',
       expect(Math.abs(g.right - g.viewport)).toBeLessThan(1);
       expect(g.titleOnTop).toBe(true);
       expect(g.backOnTop).toBe(true);
-      expect(g.oldStripe).toBe(0);
+      expect(g.titleShadow).toBe('none');
     });
   }
+
+  test('the Program screen has no background image: no red line behind its title', async ({ page }) => {
+    await page.goto('./#/program');
+    await expect(page.getByRole('heading', { level: 1, name: /программа/i })).toBeVisible();
+    await expect(page.locator('header .backdrop')).toHaveCount(0);
+    await expect(page.locator('header .art')).toHaveCount(0);
+    await expect(page.locator('header img')).toHaveCount(0);
+  });
 
   test('screens with their own illustration do not get the background image', async ({ page }) => {
     await loadDemo(page);
@@ -278,4 +351,63 @@ test.describe('headers without an illustration: black-and-red background image',
       await expect(page.locator('header .art img')).toHaveCount(1);
     }
   });
+});
+
+test.describe('the same top on every screen: the back label starts where Home’s «АТЛЕТИКА» does', () => {
+  const PATHS = [
+    './#/program',
+    './#/history',
+    './#/settings',
+    './#/settings/rest',
+    './#/days',
+    './#/exercises',
+    './#/exercises/new',
+    './#/workout',
+    './#/kit',
+  ];
+
+  /** Viewport y of the top of the back label's capitals (22 px Oswald). */
+  const backCapTop = (page: Page) =>
+    page.locator('main a').first().evaluate(
+      (link, [ascent, cap]) => {
+        const label = link.querySelector('span')!;
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        const size = parseFloat(getComputedStyle(label).fontSize);
+        return range.getBoundingClientRect().top + (ascent - cap) * size;
+      },
+      [ASCENT, CAP],
+    );
+
+  test('one gutter from the top, as on Home', async ({ page }) => {
+    for (const path of PATHS) {
+      await page.goto(path);
+      await expect(page.locator('main a').first()).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      expect(Math.abs((await backCapTop(page)) - GUTTER), path).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('under a phone status bar: the safe area, 16 px more, and the gutter, as on Home', async ({ page }) => {
+    for (const path of PATHS) {
+      await page.goto(path);
+      await expect(page.locator('main a').first()).toBeVisible();
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty('--safe-top', '59px');
+        return document.fonts.ready;
+      });
+      expect(Math.abs((await backCapTop(page)) - (59 + 16 + GUTTER)), path).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+test('the exercise selector’s «Создать упражнение» is a regular (outlined) button', async ({ page }) => {
+  await loadDemo(page);
+  await openDemoDay1(page);
+  await page.getByRole('link', { name: /добавить упражнение/i }).click();
+  const button = page.getByRole('link', { name: /создать упражнение/i });
+  await expect(button).toBeVisible();
+  await expect(button).toHaveClass(/secondary/);
+  await expect(button).toHaveCSS('background-color', 'rgb(7, 7, 6)');
+  await expect(button).toHaveCSS('border-top-color', 'rgb(247, 237, 224)');
 });

@@ -196,8 +196,15 @@ test.describe('exercise description and video on the set screen', () => {
     await expectSet(page, /жим лёжа/i, '1/3', 8);
   });
 
+  test('the demo «Жим лёжа» has both', async ({ page }) => {
+    await startWorkout(page);
+    await expect(about(page)).toContainText('Лопатки сведены');
+    await expect(videoLink(page)).toHaveAttribute('href', /^https:\/\/www\.youtube\.com\/results\?search_query=/);
+  });
+
   test('shows only what the exercise has', async ({ page }) => {
-    await startWorkout(page); // demo exercises have neither
+    await describeBenchPress(page, '', '');
+    await startWorkout(page);
     await expect(about(page)).toHaveCount(0);
     await page.getByRole('link', { name: /главная/i }).click();
 
@@ -286,6 +293,11 @@ test('the set screen: no shadow under the name, «1/3» tight, the divider space
     };
   });
   expect(g.countText).toBe('1/3');
+  // «1/3» all in one colour, cream: the current set is not red.
+  const colours = await page.locator('.panel.figures .count').evaluate((el) =>
+    [el, ...el.querySelectorAll('*')].map((node) => getComputedStyle(node).color),
+  );
+  expect(new Set(colours)).toEqual(new Set(['rgb(247, 237, 224)']));
   // Room on both sides of the line between «1/3» and the − button.
   expect(g.gapBefore).toBeGreaterThanOrEqual(12);
   expect(g.gapAfter).toBeGreaterThanOrEqual(12);
@@ -293,12 +305,46 @@ test('the set screen: no shadow under the name, «1/3» tight, the divider space
   expect(Math.abs(g.labelOffCentre)).toBeLessThanOrEqual(1);
 });
 
+test('a name on two lines has room between them; a one-line name keeps its place', async ({ page }) => {
+  // Long enough to wrap at any phone width; the workout copies the name when it starts.
+  await page.goto('./#/exercises');
+  await page.getByRole('link', { name: 'Жим лёжа' }).click();
+  await page.getByLabel('Название').fill('Жим лёжа на наклонной скамье');
+  await page.getByRole('button', { name: /сохранить/i }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /упражнения/i })).toBeVisible();
+  await page.goto('./');
+  await startWorkout(page);
+
+  const heading = page.getByRole('heading', { level: 1 });
+  await expect(heading).toHaveText(/жим лёжа на наклонной скамье/i);
+  await page.evaluate(() => document.fonts.ready);
+  const g = await heading.evaluate((h) => {
+    const range = document.createRange();
+    range.selectNodeContents(h);
+    const tops = [...new Set([...range.getClientRects()].map((r) => Math.round(r.top * 10) / 10))];
+    const cs = getComputedStyle(h);
+    const size = parseFloat(cs.fontSize);
+    return {
+      lines: tops.length,
+      spacing: tops.length > 1 ? (tops[1] - tops[0]) / size : 0,
+      marginTop: parseFloat(cs.marginTop) / size,
+      marginBottom: parseFloat(cs.marginBottom) / size,
+    };
+  });
+  expect(g.lines).toBeGreaterThanOrEqual(2);
+  // Baseline to baseline 1.1em (was 0.95em, where «Д» and «Ё» touched the other line).
+  expect(g.spacing).toBeGreaterThanOrEqual(1.08);
+  // The extra half-leading is taken back above and below, so a one-line name does not move.
+  expect(g.marginTop).toBeCloseTo(-0.075, 2);
+  expect(g.marginBottom).toBeCloseTo(-0.075, 2);
+});
+
 test('finishing a set starts its rest; past 0:00 the timer counts on below zero and pulses', async ({ page }) => {
   await startWorkout(page);
   await complete(page);
   await expect(page.getByRole('heading', { name: /отдых/i })).toBeVisible();
   await expectTimer(page, 90);
-  await expect(page.getByText(/до следующего подхода/i)).toBeVisible();
+  await expect(page.locator('.panel.next')).toContainText(/следующий подход/i);
   await expect(page.locator('.panel.next')).toContainText(/жим лёжа/i);
   await expect(page.getByRole('timer')).toHaveCSS('text-shadow', 'none');
   await expect(page.getByRole('timer')).toHaveCSS('animation-name', 'none');
@@ -350,6 +396,25 @@ test('the rest screen has only «Завершить отдых», right under th
   expect(next!.y).toBeGreaterThan(button!.y + button!.height);
 });
 
+test('under the timer: no «До следующего…» or «Подход N из N», but their space stays', async ({ page }) => {
+  await startWorkout(page);
+  await complete(page);
+  await expect(page.getByRole('timer')).toBeVisible();
+  const stage = page.locator('.stage.rest');
+  await expect(stage).not.toContainText(/до следующего/i);
+  await expect(stage).not.toContainText(/подход 2 из 3/i);
+  // The button stays where it was below those two lines: the timer's bottom to the button is
+  // still the two 21 px lines (line-height 1.1) and their gaps.
+  const g = await page.evaluate(() => {
+    const timer = document.querySelector('[role=timer]')!.getBoundingClientRect();
+    const button = [...document.querySelectorAll('main button')].find((b) => /завершить отдых/i.test(b.textContent!))!;
+    return { gap: button.getBoundingClientRect().top - timer.bottom };
+  });
+  expect(g.gap).toBeGreaterThanOrEqual(2 * 1.1 * 21 + 2 * 6);
+  // The next set is still named in the panel below.
+  await expect(page.locator('.panel.next')).toContainText(/2 из 3/i);
+});
+
 test('an over-run rest stays on screen after closing the app', async ({ page }) => {
   await startWorkout(page);
   await complete(page);
@@ -368,7 +433,7 @@ test('the last set of an exercise rests before the next exercise', async ({ page
     await endRest(page);
   }
   await complete(page);
-  await expect(page.getByText(/до следующего упражнения/i)).toBeVisible();
+  await expect(page.locator('.panel.next')).toContainText(/следующее упражнение/i);
   await expect(page.locator('.panel.next')).toContainText(/подтягивания/i);
   await endRest(page);
   await expectSet(page, /подтягивания/i, '1/3', 10);
@@ -494,7 +559,8 @@ test('a day without exercises cannot be started', async ({ page }) => {
 
 test.describe('sharing the summary', () => {
   const shareButton = (page: Page) => page.getByRole('button', { name: /поделиться/i });
-  const copyButton = (page: Page) => page.getByRole('button', { name: /копировать/i });
+  // Without a share sheet the same icon button copies; there is no «Копировать» button.
+  const copyButton = (page: Page) => page.getByRole('button', { name: /скопировать итоги/i });
 
   /** Finishes Day 1 by skipping every exercise, then reloads with the given share sheet. */
   async function openSummary(
@@ -509,6 +575,52 @@ test.describe('sharing the summary', () => {
     await page.reload();
     await expect(page.getByRole('listitem').first()).toBeVisible();
   }
+
+  test('a cream share icon in the bottom right corner, the gutter from the edges; no text buttons', async ({ page }) => {
+    await openSummary(page, 'share');
+    const button = shareButton(page);
+    await expect(button).toBeVisible();
+    await expect(button.locator('svg[data-icon="share"]')).toHaveCount(1);
+    await expect(button).toHaveText('');
+    await expect(button).toHaveCSS('background-color', 'rgb(247, 237, 224)');
+    await expect(page.getByRole('button', { name: /^копировать$/i })).toHaveCount(0);
+    const g = await button.evaluate((b) => {
+      const r = b.getBoundingClientRect();
+      return {
+        right: document.documentElement.clientWidth - r.right,
+        bottom: innerHeight - r.bottom,
+        width: r.width,
+        height: r.height,
+      };
+    });
+    expect(Math.abs(g.right - 18)).toBeLessThan(1);
+    expect(Math.abs(g.bottom - 18)).toBeLessThan(1);
+    expect(g.width).toBe(g.height);
+    // It stays in the corner while the results scroll, and never covers the last of them.
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    const lastBottom = await page.locator('main .actions-bottom').evaluate((el) => el.getBoundingClientRect().bottom);
+    const buttonTop = await button.evaluate((b) => b.getBoundingClientRect().top);
+    expect(lastBottom).toBeLessThanOrEqual(buttonTop);
+  });
+
+  test('«На главную» follows the results with a natural gap; «Скопировано» takes no room', async ({ page }) => {
+    await openSummary(page, 'none');
+    const g = await page.evaluate(() => {
+      const rows = document.querySelectorAll('ul.results li');
+      const last = rows[rows.length - 1].getBoundingClientRect();
+      const button = [...document.querySelectorAll('main a')].find((a) => /на главную/i.test(a.textContent!))!;
+      const status = document.querySelector('[role=status]')!.getBoundingClientRect();
+      return { gap: button.getBoundingClientRect().top - last.bottom, statusSize: [status.width, status.height] };
+    });
+    // It was ~51 px: a reserved line for «Скопировано» plus two gaps.
+    expect(g.gap).toBeGreaterThanOrEqual(12);
+    expect(g.gap).toBeLessThanOrEqual(24);
+    expect(g.statusSize[0]).toBeLessThanOrEqual(1);
+    expect(g.statusSize[1]).toBeLessThanOrEqual(1);
+    // Screen readers still hear it after copying.
+    await copyButton(page).click();
+    await expect(page.getByRole('status')).toHaveText(/скопировано/i);
+  });
 
   test('«Поделиться» opens the share sheet with the summary text, and copies nothing', async ({ page }) => {
     await openSummary(page, 'share');

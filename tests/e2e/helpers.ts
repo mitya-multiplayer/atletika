@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test';
 
-/** Fills the empty app with the demo program (10 exercises, 3 days) via the component gallery. */
+/**
+ * Fills the empty app with the demo program (10 exercises, some with a description and video;
+ * 3 days, a series in Days 2 and 3) via the component gallery.
+ */
 export async function loadDemo(page: Page) {
   await page.goto('./#/kit');
   await page.getByRole('button', { name: 'Загрузить демо-данные' }).click();

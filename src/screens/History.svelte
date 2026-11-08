@@ -33,7 +33,7 @@
           <span>{formatDateParts(latest.startedAt).full}</span>
           <span>{durationMinutes(latest)} мин</span>
         </p>
-        <Button to={summaryPath(latest)}>Посмотреть тренировку</Button>
+        <Button variant="cream" to={summaryPath(latest)}>Посмотреть тренировку</Button>
       </section>
 
       {#if earlier.length > 0}
@@ -119,16 +119,16 @@
     border-top: 1px solid var(--c-panel-line);
   }
 
+  /* The day number right against the month and year: no reserved width, a small gap. */
   .date {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
   }
 
   .date-day {
-    min-width: 2ch;
     font-size: 46px;
-    color: var(--c-red);
+    color: var(--c-cream);
   }
 
   .date-rest {

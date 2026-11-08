@@ -74,6 +74,7 @@
     <div class="stack">
       <Button variant="secondary">Пропустить упражнение</Button>
       <Button variant="secondary" icon="plus">Добавить упражнение</Button>
+      <Button variant="cream">Посмотреть тренировку</Button>
     </div>
   </section>
 

@@ -3,17 +3,38 @@ import { db } from './db';
 import { newId } from './repo';
 import type { DayItem, Exercise, SetConfig, TrainingDay } from '../domain/types';
 
-const EXERCISES = [
-  'Жим лёжа',
-  'Подтягивания',
-  'Жим гантелей стоя',
-  'Тяга штанги в наклоне',
-  'Приседания со штангой',
-  'Выпады с гантелями',
-  'Отжимания на брусьях',
-  'Отжимания на упорах',
-  'Сгибания на бицепс',
-  'Подъёмы ног в висе',
+/** A YouTube search, not a particular video: it always opens something relevant. */
+const search = (query: string) => `https://www.youtube.com/results?search_query=${query.replaceAll(' ', '+')}`;
+
+// Some exercises have a description and a video, some only one of them, some neither, so every
+// case shows on the workout set screen.
+const EXERCISES: { name: string; description?: string; video?: string }[] = [
+  {
+    name: 'Жим лёжа',
+    description: 'Лопатки сведены, ноги упираются в пол.\nОпускать штангу к нижней части груди, выжимать вверх без отрыва таза.',
+    video: search('bench press technique'),
+  },
+  {
+    name: 'Подтягивания',
+    description: 'Хват чуть шире плеч. Подбородок над перекладиной, вниз до прямых рук, без рывков.',
+    video: search('pull up technique'),
+  },
+  { name: 'Жим гантелей стоя' },
+  { name: 'Тяга штанги в наклоне', description: 'Спина прямая, наклон около 45°. Тянуть штангу к поясу, сводя лопатки.' },
+  {
+    name: 'Приседания со штангой',
+    description: 'Штанга на трапециях, стопы на ширине плеч. Опускаться до параллели бёдер с полом, колени — по носкам.',
+    video: search('barbell squat technique'),
+  },
+  { name: 'Выпады с гантелями', video: search('dumbbell lunges technique') },
+  {
+    name: 'Отжимания на брусьях',
+    description: 'Корпус слегка наклонён вперёд. Опускаться, пока плечо не станет параллельно полу.',
+    video: search('dips technique'),
+  },
+  { name: 'Отжимания на упорах', description: 'Тело — одна прямая линия. Опускаться ниже уровня упоров, локти вдоль корпуса.' },
+  { name: 'Сгибания на бицепс' },
+  { name: 'Подъёмы ног в висе', video: search('hanging leg raise technique') },
 ];
 
 // [exercise, sets, reps] for a plain exercise; { series } for a series: [exercise, reps] × rounds.
@@ -21,7 +42,10 @@ type DemoItem = [string, number, number] | { rounds: number; exercises: [string,
 
 const DAYS: [string, DemoItem[]][] = [
   ['Верх тела', [['Жим лёжа', 3, 8], ['Подтягивания', 3, 10], ['Жим гантелей стоя', 3, 10], ['Тяга штанги в наклоне', 3, 12]]],
-  ['Низ тела', [['Приседания со штангой', 4, 8], ['Выпады с гантелями', 3, 12], ['Подъёмы ног в висе', 3, 15]]],
+  ['Низ тела', [
+    ['Приседания со штангой', 4, 8],
+    { rounds: 3, exercises: [['Выпады с гантелями', 12], ['Подъёмы ног в висе', 15]] },
+  ]],
   ['Жимовые', [
     ['Отжимания на упорах', 4, 15],
     { rounds: 5, exercises: [['Подтягивания', 5], ['Отжимания на брусьях', 6], ['Отжимания на упорах', 10]] },
@@ -35,11 +59,11 @@ export async function loadDemoData(): Promise<boolean> {
     if ((await db.exercises.count()) > 0 || (await db.days.count()) > 0) return false;
 
     const now = Date.now();
-    const exercises: Exercise[] = EXERCISES.map((name, i) => ({
+    const exercises: Exercise[] = EXERCISES.map((exercise, i) => ({
       id: newId(),
-      name,
-      description: '',
-      videoUrl: '',
+      name: exercise.name,
+      description: exercise.description ?? '',
+      videoUrl: exercise.video ?? '',
       createdAt: now + i,
     }));
     const idByName = new Map(exercises.map((exercise) => [exercise.name, exercise.id]));

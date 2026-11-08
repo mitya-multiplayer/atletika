@@ -8,6 +8,7 @@
   import { durationMinutes, exerciseResult, summaryText } from '../lib/domain/workout';
   import Button from '../lib/ui/Button.svelte';
   import { showMessage } from '../lib/ui/dialog.svelte';
+  import Icon from '../lib/ui/Icon.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
 
   let { workoutId, query }: { workoutId: string; query: URLSearchParams } = $props();
@@ -68,7 +69,7 @@
   }
 </script>
 
-<main class="screen">
+<main class="screen summary">
   <ScreenHeader
     {back}
     kicker={fromHistory ? 'Тренировка' : 'Тренировка завершена'}
@@ -100,14 +101,22 @@
       {/each}
     </ul>
 
-    <div class="actions-bottom">
-      <Button onclick={share}>{canShare ? 'Поделиться' : 'Копировать'}</Button>
-      <p class="copied" role="status">{copied ? 'Скопировано' : ''}</p>
-      <!-- From History the back button at the top returns there; no second way back. -->
-      {#if !fromHistory}
+    <!-- Announced to screen readers only: on a phone the share sheet opens instead, and a
+         visible line here only left an empty gap above «На главную» (2026-11-08). -->
+    <p class="visually-hidden" role="status">{copied ? 'Скопировано' : ''}</p>
+
+    <!-- From History the back button at the top returns there; no second way back. -->
+    {#if !fromHistory}
+      <div class="actions-bottom">
         <Button variant="secondary" to="/">На главную</Button>
-      {/if}
-    </div>
+      </div>
+    {/if}
+
+    <!-- In the bottom right corner (2026-11-08, replacing the «Поделиться» / «Копировать»
+         buttons). Where the browser has no share sheet it copies the text instead. -->
+    <button type="button" class="share" aria-label={canShare ? 'Поделиться' : 'Скопировать итоги'} onclick={share}>
+      <Icon name="share" size={34} />
+    </button>
   {/if}
 </main>
 
@@ -151,9 +160,33 @@
     color: var(--c-text-muted);
   }
 
-  .copied {
-    min-height: 1.35em;
-    text-align: center;
-    color: var(--c-text-muted);
+  /* Room at the end, so the share button never covers the last of the content. */
+  .summary {
+    --share-size: 60px;
+    --share-bottom: max(var(--gutter), var(--safe-bottom));
+    padding-bottom: calc(var(--share-bottom) + var(--share-size) + 16px);
+  }
+
+  /* A cream square in the bottom right corner, the gutter from the side and from the bottom
+     (or the home indicator's safe area), inside the app's 520 px column on a wide screen. */
+  .share {
+    position: fixed;
+    right: max(var(--gutter), calc(50vw - 260px + var(--gutter)));
+    bottom: var(--share-bottom);
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: var(--share-size);
+    height: var(--share-size);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-m);
+    background: var(--c-cream);
+    color: var(--c-ink);
+    cursor: pointer;
+  }
+
+  .share:active {
+    transform: translateY(1px);
   }
 </style>

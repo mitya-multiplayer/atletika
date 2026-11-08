@@ -142,7 +142,7 @@
         <div>
           <span class="label">{exercise.series ? 'Круг' : 'Подход'}</span>
           <span class="big display count"
-            ><span class="current">{step!.set + 1}</span>/{exercise.series?.rounds ?? exercise.sets.length}</span
+            >{step!.set + 1}/{exercise.series?.rounds ?? exercise.sets.length}</span
           >
         </div>
         <div class="reps-column">
@@ -192,12 +192,9 @@
           role="timer"
           aria-label={over ? `Отдых окончен ${timerText.slice(1)} назад` : `Осталось ${timerText}`}
         >{timerText}</p>
-        <p class="until display">
-          {nextKind === 'set' ? 'До следующего подхода' : nextKind === 'round' ? 'До следующего круга' : 'До следующего упражнения'}
-        </p>
-        <p class="which display">
-          {upcoming.exercise.series ? 'Круг' : 'Подход'} {countOf(upcoming.exercise, upcoming.step.set)}
-        </p>
+        <!-- Where «До следующего подхода» and «Подход 2 из 3» were (2026-11-08): the space stays,
+             so «Завершить отдых» keeps its place. What comes next is in the panel below. -->
+        <div class="rest-space" aria-hidden="true"></div>
       </section>
 
       <div class="actions">
@@ -267,9 +264,7 @@
   .kicker,
   .exercise,
   .rest-title,
-  .timer,
-  .until,
-  .which {
+  .timer {
     position: relative;
   }
 
@@ -279,9 +274,16 @@
     color: var(--c-text-muted);
   }
 
+  /* A name on two lines needs room between them: at the display line-height of 0.95 the tail
+     of «Д» in the first line met the capitals of the second, and the dots of «Ё» met the line
+     above. The negative margins take back the extra half-leading, so a one-line name sits
+     exactly where it did. */
   .exercise {
+    --lh: 1.1;
     min-width: 0;
+    margin-block: calc((0.95 - var(--lh)) / 2 * 1em);
     font-size: 72px;
+    line-height: var(--lh);
   }
 
   .rest {
@@ -321,11 +323,9 @@
     }
   }
 
-  .until,
-  .which {
-    font-weight: 600;
-    font-size: 21px;
-    line-height: 1.1;
+  /* The height of the two 21 px lines (line-height 1.1) and the gap between them. */
+  .rest-space {
+    height: calc(2 * 1.1 * 21px + 6px);
   }
 
   /* minmax(0, …): otherwise the column grows to fit a long URL and nothing is cut off. */
@@ -386,10 +386,6 @@
     font-size: 72px;
     line-height: 1;
     white-space: nowrap;
-  }
-
-  .current {
-    color: var(--c-red);
   }
 
   .reps {

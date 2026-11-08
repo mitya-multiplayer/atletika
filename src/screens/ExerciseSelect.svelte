@@ -74,7 +74,7 @@
   {/if}
 
   <div class="actions-bottom">
-    <Button icon="plus" to="/exercises/new?back={encodeURIComponent(`/days/${dayId}/add${seriesId ? `?series=${seriesId}` : ''}`)}">Создать упражнение</Button>
+    <Button variant="secondary" icon="plus" to="/exercises/new?back={encodeURIComponent(`/days/${dayId}/add${seriesId ? `?series=${seriesId}` : ''}`)}">Создать упражнение</Button>
   </div>
 </main>
 

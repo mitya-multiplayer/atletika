@@ -1,10 +1,11 @@
-<!-- Components 04 (primary: red fill, black label) and 05 (secondary: cream outline). -->
+<!-- Components 04 (primary: red fill, black label) and 05 (secondary: cream outline), and
+     cream: cream fill, black label, for opening something rather than acting (History). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Icon, { type IconName } from './Icon.svelte';
 
   type Props = {
-    variant?: 'primary' | 'secondary';
+    variant?: 'primary' | 'secondary' | 'cream';
     icon?: IconName;
     trailing?: IconName;
     to?: string;
@@ -76,6 +77,11 @@
     background: var(--c-bg);
     border-color: var(--c-cream);
     color: var(--c-cream);
+  }
+
+  .cream {
+    background: var(--c-cream);
+    color: var(--c-ink);
   }
 
   .btn:active {

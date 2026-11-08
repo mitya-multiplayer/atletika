@@ -39,8 +39,21 @@
   --button-h: 60px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* Space above a screen's content; header pictures reach up through it to the top edge. */
-  --screen-pad-top: calc(var(--safe-top) + 12px);
+  /* Where the capitals of a screen's first line start: one gutter below the safe area, plus
+     up to 16 px under a phone's status bar, whose soft edge blurs what lies just under it
+     (iOS 26). Home's «АТЛЕТИКА» and every back button's label start on this line. */
+  --top-extra: min(var(--safe-top), 16px);
+  --content-top: calc(var(--safe-top) + var(--top-extra) + var(--gutter));
+  /* Space above a screen's content; header pictures reach up through it to the top edge.
+     The back button's label capitals sit 14 px below the top of its 44 px box (22 px
+     Oswald, line-height 1, centred: 11 px + 0.142em), so the box starts that much higher. */
+  --back-cap-offset: 14px;
+  --screen-pad-top: calc(var(--content-top) - var(--back-cap-offset));
+
+  /* The push-up bars («Упражнения»): one box shape everywhere. The Program card shows it at
+     this height; a header from its top edge to below the title, so as tall as that is. */
+  --bars-art-h: 133px;
+  --bars-art-ratio: 2.1;
 }
 
 *,

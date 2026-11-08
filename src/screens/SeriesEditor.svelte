@@ -144,7 +144,8 @@
 
     <div class="actions-bottom">
       <Button variant="secondary" icon="plus" to="/days/{dayId}/add?series={itemId}">Добавить упражнение</Button>
-      <Button to="/days/{dayId}">Готово</Button>
+      <!-- Each change is saved at once; this only returns to the day (2026-11-08: was «Готово»). -->
+      <Button to="/days/{dayId}">Сохранить</Button>
     </div>
   {/if}
 </main>

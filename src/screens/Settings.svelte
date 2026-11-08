@@ -252,11 +252,6 @@
 </main>
 
 <style>
-  section {
-    /* Above the header illustration, which reaches down behind the first group. */
-    position: relative;
-  }
-
   .group-title {
     margin: 26px 0 10px;
     font-size: 24px;

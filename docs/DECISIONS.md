@@ -17,6 +17,27 @@ Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict
 - Settings: row hints in sentence case. Default rest: circled − / + on a black panel, like the workout screen.
 - Dialogs open with focus on the dialog, not its first button (Safari on iPhone ringed the red button).
 - External links: the dotted underline was cut off at small text sizes (the author's name in Settings).
+- The pencil icon («edit») is redrawn, departing from `docs/assets/visual_assets/icons/svg/edit_pencil.svg`: that drawing has a skewed tip with a stray stroke inside it and sits off-centre. The new one is symmetric about its diagonal and centred (`tests/e2e/app.spec.ts` checks both).
+- Demo data: some exercises have a description and a YouTube search link, some only one, some neither; Day 2 has a series.
+
+### Second review
+- **Header pictures** (all screens): the picture's bottom edge sits about 5 px below the title's letters, and its lower part is darkened so the title reads clearly. This applies to the day editor too: the runner no longer reaches down behind the day-name field.
+- **Push-up bars** are shown at one size everywhere: the box of the Program screen's «Упражнения» card, whole, on the library, exercise form, selector and set configuration screens. (Third review: anchored to the top edge and scaled to the header instead.)
+- **Program** has no background image behind its title (no red line).
+- **Same top on every screen:** the back button's label starts where Home's «АТЛЕТИКА» does (`--content-top`).
+- **No text shadows** anywhere.
+- **Cream button** (cream fill, black label), a third `Button` variant: «ПОСМОТРЕТЬ ТРЕНИРОВКУ» in History.
+- **History list:** the day of the month in cream, right next to the month and year.
+- **Rest screen:** «До следующего подхода» and «Подход N из N» are gone (the panel below names what comes next); their space stays, so «ЗАВЕРШИТЬ ОТДЫХ» keeps its place.
+- **Set screen:** «2/4» all in cream.
+- **Summary:** a cream share icon button in the bottom right corner (the gutter from the side, the gutter or the home indicator's safe area from the bottom) replaces «ПОДЕЛИТЬСЯ» / «КОПИРОВАТЬ». Where the browser has no share sheet, the same button copies the text («Скопировано»).
+- **Exercise selector:** «Создать упражнение» is a regular (outlined) button. **Series editor:** the bottom button reads «СОХРАНИТЬ» (changes are still saved at once).
+
+### Third review
+- **Header pictures fade out** by a mask instead of a dark layer over them; the dark layer let a thin light line show along the picture's bottom edge on phones (fractional device pixels).
+- **Exercise name on two lines** (set screen): 1.1em between lines instead of 0.95em, so «Д» and «Ё» no longer touch the other line; a one-line name stays where it was.
+- **Push-up bars in headers** start at the top edge of the screen, like the other pictures, and end just below the title. They keep the Program card's box shape (`--bars-art-ratio`), scaled to that height: a one-line title without a status bar shows them at the card's size, a title on two lines («Новое упражнение») or a phone's status bar larger. This replaces "the same size everywhere" from the second review.
+- **Summary:** «На главную» follows the results with the usual gap. «Скопировано» is no longer shown (it reserved an empty line); screen readers still hear it.
 
 ## 2026-11-07
 
@@ -62,7 +83,7 @@ Follow-ons applied in the draft:
 - Each exercise in a series has its own repetitions and rest. After the last exercise of a round the rest after the round applies instead; after the last round it is the rest before the next item.
 - In a series, «ПРОПУСТИТЬ СЕРИЮ» replaces «Пропустить упражнение» and skips the rest of the series.
 - On the workout progress scale a series is one segment, like an exercise.
-- The series editor saves each change at once; «ГОТОВО» returns to the day.
+- The series editor saves each change at once; «ГОТОВО» returns to the day. (2026-11-08: the button reads «СОХРАНИТЬ».)
 - A series without exercises is left out when a workout starts.
 
 ### Active workout

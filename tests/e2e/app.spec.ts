@@ -25,6 +25,29 @@ test('bundled fonts render Cyrillic', async ({ page }) => {
   expect(covered).toBe(true);
 });
 
+test('the pencil icon is symmetric about its diagonal and centred', async ({ page }) => {
+  await page.goto('./#/kit');
+  const g = await page.locator('svg[data-icon="edit"] path').first().evaluate((el) => {
+    const path = el as SVGPathElement;
+    // The pencil lies along the diagonal x + y = 64; its mirror image there is (64 − y, 64 − x).
+    // Sample the 64×64 grid: every point on the stroke must have its mirror on the stroke too.
+    let inStroke = 0;
+    let unmatched = 0;
+    for (let y = 0.5; y < 64; y += 1)
+      for (let x = 0.5; x < 64; x += 1) {
+        const here = path.isPointInStroke(new DOMPoint(x, y));
+        if (here) inStroke++;
+        if (here !== path.isPointInStroke(new DOMPoint(64 - y, 64 - x))) unmatched++;
+      }
+    const box = path.getBBox();
+    return { inStroke, unmatched, centre: [box.x + box.width / 2, box.y + box.height / 2] };
+  });
+  expect(g.inStroke).toBeGreaterThan(300);
+  // The asset-pack drawing had a skewed tip and a stray stroke inside it: well over 100 points.
+  expect(g.unmatched).toBeLessThanOrEqual(4);
+  for (const c of g.centre) expect(Math.abs(c - 32)).toBeLessThanOrEqual(1.5);
+});
+
 test('build a training day from scratch', async ({ page }) => {
   await page.goto('./#/exercises/new');
   await page.getByRole('button', { name: /сохранить/i }).click();

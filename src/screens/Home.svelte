@@ -89,17 +89,15 @@
   /* The illustration below is cut on a straight line at the bottom of this box. The bottom
      padding makes the gap from the brand's baseline to that line about the one between
      «Тренировка идёт» and «День N» (baseline to capitals, ~13px).
-     Top: the gutter below the safe area, plus --home-top-extra on a phone with a status bar,
-     whose soft edge blurs what lies just under it (iOS 26). */
+     Top: --content-top, the line every screen's first capitals start on (app.css). */
   .top {
-    --home-top-extra: min(var(--safe-top), 16px);
     display: flex;
     flex: none;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
     margin: 0 calc(-1 * var(--gutter));
-    padding: calc(var(--safe-top) + var(--home-top-extra) + var(--gutter)) var(--gutter) 11px;
+    padding: var(--content-top) var(--gutter) 11px;
     background: var(--c-bg);
   }
 

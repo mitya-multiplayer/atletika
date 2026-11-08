@@ -23,7 +23,15 @@ import {
   startOrResumeWorkout,
   updateItemSets,
 } from '../../src/lib/db/repo';
-import { moveSeriesExercise, removeSeriesExercise, setRoundRest, setRounds, updateSeriesExercise } from '../../src/lib/domain/series';
+import { videoHref } from '../../src/lib/domain/exercises';
+import {
+  exerciseIdsOf,
+  moveSeriesExercise,
+  removeSeriesExercise,
+  setRoundRest,
+  setRounds,
+  updateSeriesExercise,
+} from '../../src/lib/domain/series';
 import type { ExerciseItem, SeriesItem } from '../../src/lib/domain/types';
 import { completeSet, finish, skipExercise } from '../../src/lib/domain/workout';
 
@@ -116,6 +124,37 @@ describe('demo data', () => {
     expect(await loadDemoData()).toBe(true);
     expect(await db.days.count()).toBe(3);
     expect(await loadDemoData()).toBe(false);
+  });
+
+  it('has exercises with a description and video, with only one of them, and with neither', async () => {
+    await loadDemoData();
+    const exercises = await db.exercises.toArray();
+    expect(exercises).toHaveLength(10);
+    const has = (e: { description: string; videoUrl: string }) => [!!e.description, !!e.videoUrl].join();
+    const kinds = new Set(exercises.map(has));
+    expect(kinds).toEqual(new Set(['true,true', 'true,false', 'false,true', 'false,false']));
+    // Videos are valid http(s) links the set screen will show.
+    for (const e of exercises.filter((e) => e.videoUrl)) expect(videoHref(e.videoUrl)).toMatch(/^https:\/\/www\.youtube\.com\//);
+    // The first set of Day 1 shows both.
+    const bench = exercises.find((e) => e.name === 'Жим лёжа')!;
+    expect(bench.description).toContain('Лопатки');
+    expect(bench.videoUrl).not.toBe('');
+  });
+
+  it('has a series in Day 2 and in Day 3', async () => {
+    await loadDemoData();
+    const days = await db.days.orderBy('position').toArray();
+    const names = new Map((await db.exercises.toArray()).map((e) => [e.id, e.name]));
+    const series = days.map((day) => day.items.filter((item) => item.kind === 'series'));
+    expect(series.map((s) => s.length)).toEqual([0, 1, 1]);
+    const [lowerBody] = series[1];
+    expect(lowerBody.kind === 'series' && lowerBody.rounds).toBe(3);
+    expect(lowerBody.kind === 'series' && lowerBody.exercises.map((e) => [names.get(e.exerciseId), e.reps])).toEqual([
+      ['Выпады с гантелями', 12],
+      ['Подъёмы ног в висе', 15],
+    ]);
+    // Every exercise a day uses exists in the library.
+    for (const day of days) for (const item of day.items) for (const id of exerciseIdsOf(item)) expect(names.has(id)).toBe(true);
   });
 });
 

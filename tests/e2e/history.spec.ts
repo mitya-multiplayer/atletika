@@ -79,6 +79,42 @@ test('lists workouts newest first', async ({ page }) => {
   expect(days).toEqual(['20', '19', '18']);
 });
 
+test('the list: the day of the month in cream, right beside the month and year', async ({ page }) => {
+  await finishNextWorkout(page);
+  for (const days of [1, 1]) {
+    await page.clock.fastForward(days * DAY_MS);
+    await finishNextWorkout(page);
+  }
+  await page.goto('./#/history');
+  await page.evaluate(() => document.fonts.ready);
+  const rows = await page.locator('.list .date').evaluateAll((dates) =>
+    dates.map((date) => {
+      const day = date.querySelector('.date-day')!;
+      const range = document.createRange();
+      range.selectNodeContents(day);
+      const digits = range.getBoundingClientRect();
+      return {
+        colour: getComputedStyle(day).color,
+        gap: date.querySelector('.date-rest')!.getBoundingClientRect().left - digits.right,
+      };
+    }),
+  );
+  expect(rows).toHaveLength(2);
+  for (const row of rows) {
+    expect(row.colour).toBe('rgb(247, 237, 224)');
+    // No reserved width after a one-digit day: the month follows the digit closely.
+    expect(row.gap).toBeGreaterThanOrEqual(2);
+    expect(row.gap).toBeLessThanOrEqual(8);
+  }
+});
+
+test('«Посмотреть тренировку» is a cream button with a black label', async ({ page }) => {
+  await threeWorkouts(page);
+  const button = page.getByRole('link', { name: /посмотреть тренировку/i });
+  await expect(button).toHaveCSS('background-color', 'rgb(247, 237, 224)');
+  await expect(button).toHaveCSS('color', 'rgb(7, 7, 6)');
+});
+
 test('opening the latest workout shows its results; back returns to History', async ({ page }) => {
   await threeWorkouts(page);
   await page.getByRole('link', { name: /посмотреть тренировку/i }).click();

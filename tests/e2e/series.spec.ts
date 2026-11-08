@@ -60,6 +60,20 @@ test.describe('day editor', () => {
     await expect(rows.nth(2)).not.toContainText('отдых');
   });
 
+  test('demo Day 2 has a series after its first exercise', async ({ page }) => {
+    await openDay(page, 2);
+    const card = seriesCards(page);
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText(/серия 1/i);
+    await expect(card).toContainText('× 3 круга');
+    const rows = card.locator('.series-list li');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText(/выпады с гантелями/i);
+    await expect(rows.nth(1)).toContainText(/подъёмы ног в висе/i);
+    // Приседания first, then the series.
+    await expect(page.getByRole('listitem').first()).toContainText(/приседания со штангой/i);
+  });
+
   test('«Добавить серию» creates a numbered series and opens its editor', async ({ page }) => {
     await openDay(page, 3);
     await page.getByRole('button', { name: /добавить серию/i }).click();
@@ -119,7 +133,9 @@ test.describe('series editor', () => {
 
     await page.reload();
     await expect(page.getByRole('group', { name: 'Круги' })).toContainText('6');
-    await page.getByRole('link', { name: /готово/i }).click();
+    // «Сохранить» (was «Готово»): the changes are already saved; it returns to the day.
+    await expect(page.getByRole('link', { name: /готово/i })).toHaveCount(0);
+    await page.getByRole('link', { name: /^сохранить$/i }).click();
     const card = seriesCards(page);
     await expect(card).toContainText('× 6 кругов');
     await expect(card).toContainText('отдых после круга 1:45');
@@ -214,10 +230,10 @@ test.describe('series in a workout', () => {
     await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
 
     await page.getByRole('button', { name: /завершить подход/i }).click();
-    await expect(page.getByText(/до следующего упражнения/i)).toBeVisible();
+    await expect(page.locator('.panel.next')).toContainText(/следующее упражнение/i);
     await expect(page.getByRole('timer')).toHaveText(/00:(30|29|28)/);
     await expect(page.locator('.panel.next')).toContainText(/отжимания на брусьях/i);
-    await expect(page.locator('.which')).toHaveText(/круг 1 из 5/i);
+    await expect(page.locator('.panel.next')).toContainText(/круг\s*1 из 5/i);
     await page.getByRole('button', { name: /завершить отдых/i }).click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/отжимания на брусьях/i);
@@ -227,10 +243,9 @@ test.describe('series in a workout', () => {
 
     // The last exercise of the round: the rest after the round follows.
     await page.getByRole('button', { name: /завершить подход/i }).click();
-    await expect(page.getByText(/до следующего круга/i)).toBeVisible();
     await expect(page.getByRole('timer')).toHaveText(/0[12]:\d\d/);
     await expect(page.locator('.panel.next')).toContainText(/следующий круг/i);
-    await expect(page.locator('.which')).toHaveText(/круг 2 из 5/i);
+    await expect(page.locator('.panel.next')).toContainText(/круг\s*2 из 5/i);
 
     // Past the round rest the timer runs on below zero until «Завершить отдых».
     await page.clock.fastForward(125_000);
