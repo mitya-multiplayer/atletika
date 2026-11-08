@@ -13,6 +13,13 @@
 
   --font-display: 'Oswald Variable', sans-serif;
   --font-ui: 'Roboto Condensed Variable', sans-serif;
+  /* Oswald's vertical metrics in em (the bundled files; ascent and descent are the same in its
+     hhea and typo tables, and USE_TYPO_METRICS is set, so every browser lays it out alike).
+     A line of height L puts the top of the capitals ((L + ascent - descent) / 2 - cap) em
+     below the line's top. */
+  --oswald-ascent: 1.193;
+  --oswald-descent: 0.289;
+  --oswald-cap: 0.81;
 
   --fs-hero: clamp(56px, 19vw, 104px);
   --fs-title: clamp(40px, 12.5vw, 64px);

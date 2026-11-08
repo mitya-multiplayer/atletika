@@ -1,4 +1,5 @@
-// Home screen artwork: the planche illustration and the tile icons supplied on 2026-11-04.
+// Home screen layout and artwork: brand and date at the top; the planche illustration, next
+// workout and tiles at the bottom; the tile icons supplied on 2026-11-04.
 import { expect, test, type Page } from '@playwright/test';
 
 /** Whether points on the 64x64 icon grid are inside the icon's filled shape. */
@@ -9,9 +10,18 @@ async function filledAt(page: Page, icon: string, points: [number, number][]) {
   }, points);
 }
 
+/**
+ * Waits until the next-workout block has loaded (an empty program: «Создать день»). The bottom
+ * group keeps to the bottom edge, so everything above it moves up when that content arrives.
+ */
+async function homeLoaded(page: Page) {
+  await expect(page.getByRole('navigation', { name: 'Разделы' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /создать день/i })).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('./');
-  await expect(page.getByRole('navigation', { name: 'Разделы' })).toBeVisible();
+  await homeLoaded(page);
 });
 
 test('the hero shows the planche illustration full width at its own proportions', async ({ page }) => {
@@ -28,26 +38,221 @@ test('the hero shows the planche illustration full width at its own proportions'
       viewport: document.documentElement.clientWidth,
     };
   });
-  // The 2026-11-05 poster (1390x1105), with black space at the top for the brand.
-  expect(hero.natural).toEqual([1390, 1105]);
-  expect(hero.ratio).toBeCloseTo(1390 / 1105, 1);
+  // The square 2026-11-08 poster (1392x1400).
+  expect(hero.natural).toEqual([1392, 1400]);
+  expect(hero.ratio).toBeCloseTo(1392 / 1400, 1);
   expect(Math.abs(hero.width - hero.viewport)).toBeLessThan(1);
 });
 
-test('the hero starts at the top edge, with the brand and date over it', async ({ page }) => {
-  await page.evaluate(() => document.fonts.ready);
-  const g = await page.evaluate(() => {
-    const img = document.querySelector('.hero img')!.getBoundingClientRect();
-    const onTop = (selector: string) => {
-      const box = document.querySelector(selector)!.getBoundingClientRect();
-      const hit = document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2);
-      return { inside: box.top >= img.top && box.bottom <= img.bottom, drawnAbove: !!hit?.closest(selector) };
+const GUTTER = 18;
+
+/** Decoded pixels of a capture of `clip` (viewport CSS pixels), with its device-pixel scale. */
+async function capture(page: Page, clip: { x: number; y: number; width: number; height: number }) {
+  const png = await page.screenshot({ clip });
+  return page.evaluate(async (data) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${data}`;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    // devicePixelRatio, not the image size over the clip size: a narrow clip rounds too coarsely.
+    return { w: img.width, h: img.height, scale: devicePixelRatio, px: [...ctx.getImageData(0, 0, img.width, img.height).data] };
+  }, png.toString('base64'));
+}
+
+/**
+ * Viewport y, in CSS pixels, of the top of the first `letter` in `selector`: the topmost cream
+ * pixel in that letter's column, scanning from the top edge. Use a flat-topped capital (Т, Н):
+ * round letters and digits rise above the cap line, by up to a pixel in Chromium.
+ */
+async function inkTop(page: Page, selector: string, letter: string) {
+  const box = await page.locator(selector).evaluate((el, ch) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const at = node.textContent!.toLowerCase().indexOf(ch.toLowerCase());
+      if (at < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + 1);
+      const r = range.getBoundingClientRect();
+      // The middle of the letter's advance, clear of its neighbours.
+      return { x: r.left + r.width * 0.25, width: r.width * 0.5, bottom: r.bottom };
+    }
+    throw new Error(`no «${ch}» in the element`);
+  }, letter);
+  const shot = await capture(page, { x: box.x, y: 0, width: box.width, height: box.bottom });
+  for (let y = 0; y < shot.h; y++)
+    for (let x = 0; x < shot.w; x++) {
+      const [r, g, b] = shot.px.slice((y * shot.w + x) * 4, (y * shot.w + x) * 4 + 3);
+      if (r > 150 && g > 150 && b > 150) return y / shot.scale;
+    }
+  return null;
+}
+
+/** Boxes of the home screen's parts, in viewport coordinates. */
+function homeGeometry(page: Page) {
+  return page.evaluate(() => {
+    const box = (selector: string) => {
+      const r = document.querySelector(selector)!.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
     };
-    return { imgTop: img.top, brand: onTop('h1.brand'), date: onTop('p.date') };
+    return {
+      viewport: { width: document.documentElement.clientWidth, height: innerHeight },
+      top: box('header.top'),
+      brand: box('h1.brand'),
+      date: box('p.date'),
+      hero: box('.hero'),
+      img: box('.hero img'),
+      next: box('section.next'),
+      tiles: box('nav.tiles'),
+    };
   });
-  expect(Math.abs(g.imgTop)).toBeLessThan(1);
-  expect(g.brand).toEqual({ inside: true, drawnAbove: true });
-  expect(g.date).toEqual({ inside: true, drawnAbove: true });
+}
+
+/** Stands in for a phone's safe areas, which the test browsers do not have (env(safe-area-inset-*) is 0). */
+async function fakeSafeArea(page: Page, top: number, bottom: number) {
+  await page.evaluate(
+    ([t, b]) => {
+      document.documentElement.style.setProperty('--safe-top', `${t}px`);
+      document.documentElement.style.setProperty('--safe-bottom', `${b}px`);
+    },
+    [top, bottom],
+  );
+}
+
+test('the date reads the day, month and year first and the weekday under it', async ({ page }) => {
+  const lines = page.locator('p.date span');
+  await expect(lines).toHaveCount(2);
+  await expect(lines.nth(0)).toHaveText(/^\d{1,2} [А-Я]{3} \d{4}$/);
+  await expect(lines.nth(1)).toHaveText(/^(ПН|ВТ|СР|ЧТ|ПТ|СБ|ВС)$/);
+  const [first, second] = await lines.evaluateAll((spans) => spans.map((s) => s.getBoundingClientRect().top));
+  expect(second).toBeGreaterThan(first);
+});
+
+/** Shows 8 Nov 2026, «8 НОЯ 2026»: its first line then has a flat-topped «Н» to measure. */
+async function fixDate(page: Page) {
+  await page.clock.setFixedTime(new Date(2026, 10, 8, 12));
+  await page.reload();
+  await expect(page.locator('p.date span').first()).toHaveText('8 НОЯ 2026');
+  await homeLoaded(page);
+  await page.evaluate(() => document.fonts.ready);
+}
+
+test('the brand and date capitals start one gutter below the top edge, level with each other', async ({ page }) => {
+  await fixDate(page);
+  const brand = (await inkTop(page, 'h1.brand', 'Т'))!;
+  const date = (await inkTop(page, 'p.date', 'Н'))!;
+  expect(Math.abs(brand - GUTTER)).toBeLessThanOrEqual(1);
+  expect(Math.abs(date - GUTTER)).toBeLessThanOrEqual(1);
+  expect(Math.abs(brand - date)).toBeLessThanOrEqual(1);
+});
+
+test('on a tall screen the brand keeps to the top and everything else to the bottom', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 1000 });
+  // Opened at this size and measured once the next workout has loaded: WebKit once left the
+  // bottom group where it was before that content arrived, hanging below the screen.
+  await page.reload();
+  await homeLoaded(page);
+  await page.evaluate(() => document.fonts.ready);
+  const g = await homeGeometry(page);
+  // The tiles sit one gutter from the bottom and both sides, like the brand from the top.
+  expect(Math.abs(g.viewport.height - g.tiles.bottom - GUTTER)).toBeLessThan(1);
+  expect(Math.abs(g.tiles.left - GUTTER)).toBeLessThan(1);
+  expect(Math.abs(g.viewport.width - g.tiles.right - GUTTER)).toBeLessThan(1);
+  // The spare height opens between the brand and the illustration; the picture stays with the
+  // next-workout block under it, full width.
+  expect(g.img.top).toBeGreaterThan(g.brand.bottom + 40);
+  expect(g.next.top - g.img.bottom).toBeLessThan(20);
+  expect(Math.abs(g.img.right - g.img.left - g.viewport.width)).toBeLessThan(1);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(g.viewport.height);
+  expect(Math.abs((await inkTop(page, 'h1.brand', 'Т'))! - GUTTER)).toBeLessThanOrEqual(1);
+});
+
+test('the illustration has no visible edge where it meets the background', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 1000 });
+  const g = await homeGeometry(page);
+  expect(g.img.top).toBeGreaterThan(10);
+  // A strip across the picture's top edge, at the left where the picture is black.
+  const shot = await capture(page, { x: 0, y: g.img.top - 6, width: 40, height: 12 });
+  const values = shot.px.filter((_, i) => i % 4 !== 3);
+  expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
+});
+
+test('on a short screen nothing scrolls: the illustration loses its top behind the brand', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 560 });
+  await page.evaluate(() => document.fonts.ready);
+  const g = await homeGeometry(page);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(g.viewport.height);
+  expect(Math.abs(g.viewport.height - g.tiles.bottom - GUTTER)).toBeLessThan(1);
+  // The picture's frame reaches the top edge; the picture keeps its bottom (the athlete) and
+  // loses its top.
+  expect(Math.abs(g.hero.top)).toBeLessThan(1);
+  expect(g.img.top).toBeLessThan(-1);
+  expect(Math.abs(g.img.bottom - g.hero.bottom)).toBeLessThan(1);
+  const drawnAbove = await page.evaluate(() =>
+    ['h1.brand', 'p.date'].map((selector) => {
+      const r = document.querySelector(selector)!.getBoundingClientRect();
+      return !!document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2)?.closest(selector);
+    }),
+  );
+  expect(drawnAbove).toEqual([true, true]);
+});
+
+test('the illustration never shows under the brand and is cut on a straight line below it', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 560 });
+  await fixDate(page);
+  const g = await homeGeometry(page);
+  const cut = g.top.bottom;
+  expect(g.hero.top).toBeLessThan(cut - 20);
+
+  // With the brand and date made transparent, the header is plain background, edge to edge.
+  const style = await page.addStyleTag({ content: '.top, .top * { color: transparent !important; border-color: transparent !important; }' });
+  const header = await capture(page, { x: 0, y: 0, width: g.viewport.width, height: Math.floor(cut) });
+  // A loop, not Math.max(...px): a spread of a million values overflows the stack.
+  let brightest = 0;
+  for (let i = 0; i < header.px.length; i++) if (i % 4 !== 3) brightest = Math.max(brightest, header.px[i]);
+  expect(brightest).toBeLessThanOrEqual(10);
+  await style.evaluate((el) => (el as Element).remove());
+
+  // Nothing of the header (no fade) draws below its box: hiding it leaves those pixels as they are.
+  const strip = { x: 0, y: Math.ceil(cut), width: g.viewport.width, height: 24 };
+  const withHeader = await capture(page, strip);
+  await page.locator('header.top').evaluate((el) => (el.style.visibility = 'hidden'));
+  const withoutHeader = await capture(page, strip);
+  expect(withHeader.px).toEqual(withoutHeader.px);
+  await page.locator('header.top').evaluate((el) => (el.style.visibility = ''));
+
+  // The gap from the brand's baseline to the cut matches the one from «Следующая тренировка»
+  // down to the capitals of the line under it. From the Oswald metrics in src/app.css: a text
+  // range's box starts one ascent above the baseline.
+  const lines = await page.evaluate(() => {
+    const metrics = (selector: string) => {
+      const el = document.querySelector(selector)!;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const top = range.getBoundingClientRect().top;
+      const size = parseFloat(getComputedStyle(el).fontSize);
+      return { baseline: top + 1.193 * size, capTop: top + (1.193 - 0.81) * size };
+    };
+    return { brand: metrics('h1.brand'), kicker: metrics('.next .kicker'), day: metrics('.next .day') };
+  });
+  const titleGap = cut - lines.brand.baseline;
+  const wordsGap = lines.day.capTop - lines.kicker.baseline;
+  expect(wordsGap).toBeGreaterThan(8);
+  expect(Math.abs(titleGap - wordsGap)).toBeLessThanOrEqual(1.5);
+});
+
+test('the top and bottom keep clear of the phone safe areas by one gutter', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 1000 });
+  await fixDate(page);
+  await fakeSafeArea(page, 59, 34);
+  expect(Math.abs((await inkTop(page, 'h1.brand', 'Т'))! - (59 + GUTTER))).toBeLessThanOrEqual(1);
+  expect(Math.abs((await inkTop(page, 'p.date', 'Н'))! - (59 + GUTTER))).toBeLessThanOrEqual(1);
+  const g = await homeGeometry(page);
+  expect(Math.abs(g.viewport.height - g.tiles.bottom - (34 + GUTTER))).toBeLessThan(1);
 });
 
 test('the next-workout lines have equal visible gaps', async ({ page }) => {

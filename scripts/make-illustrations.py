@@ -16,8 +16,8 @@ OUT = ROOT / "src" / "assets" / "illustrations"
 
 # name -> (source file under docs/assets, (left, top, right, bottom) pixels to trim)
 ILLUSTRATIONS = {
-    # 1392x1105 poster with black space at the top for the brand; the last column is a light seam.
-    "planche": ("supplied_2026-11-05/home-planche.webp", (0, 0, 2, 0)),
+    # 1392x1400 poster, already in the app's black and cream (replaced the wide 2026-11-08 one).
+    "planche": ("supplied_2026-11-08/home-planche-square.png", (0, 0, 0, 0)),
     "runner": ("visual_assets/illustrations/02_runner_right.png", (0, 0, 0, 0)),
     "pushup-bars": ("visual_assets/illustrations/03_push_up_bars.png", (0, 14, 20, 0)),
     "gears": ("visual_assets/illustrations/04_settings_gears.png", (0, 22, 34, 0)),
@@ -25,8 +25,8 @@ ILLUSTRATIONS = {
     "header-bg": ("supplied_2026-11-05/header-background.png", (0, 0, 0, 0)),
 }
 
-# Its black (#0D0D0B) is lighter than the app background (#070706) and would show as a
-# grey rectangle. This curve lowers dark values by up to 6 and leaves bright ones intact.
+# Its black (#0D0D0B) is lighter than the app background (#070706) and would show as a grey
+# rectangle. This curve lowers dark values by up to 6 and leaves bright ones intact.
 MATCH_APP_BACKGROUND = {"header-bg"}
 
 

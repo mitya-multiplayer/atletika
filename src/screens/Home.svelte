@@ -26,105 +26,135 @@
 </script>
 
 <main class="screen home">
-  <!-- The illustration starts at the top edge of the screen; the brand and date sit over it. -->
-  <div class="masthead">
-    <div class="hero" aria-hidden="true"><img src={planche} alt="" width="1390" height="1105" /></div>
-    <header class="top">
-      <h1 class="brand display" use:fitText={{ max: 120 }}>Атлетика</h1>
-      <p class="date display">
-        <span>{today.weekday}</span>
-        <span>{today.date}</span>
-      </p>
-    </header>
-  </div>
+  <!-- The brand and date are a layer over the top of the screen; everything else keeps to the
+       bottom. When the screen is too short for a gap, the illustration runs up behind the brand
+       and loses its top, so the screen never scrolls. -->
+  <header class="top">
+    <h1 class="brand display" use:fitText={{ max: 120 }}>Атлетика</h1>
+    <p class="date display">
+      <span>{today.date}</span>
+      <span>{today.weekday}</span>
+    </p>
+  </header>
 
-  <section class="next" aria-live="polite">
-    {#if active}
-      <p class="kicker display">Тренировка идёт</p>
-      <p class="day display">{dayTitle(active.dayNumber)}</p>
-      {#if active.dayName}<p class="day-name display">{active.dayName}</p>{/if}
-    {:else if next !== undefined}
-      <p class="kicker display">Следующая тренировка</p>
-      {#if next}
-        <p class="day display">{dayTitle(dayNumber(next))}</p>
-        {#if next.name}<p class="day-name display">{next.name}</p>{/if}
-      {:else}
-        <p class="day display">Программа пуста</p>
+  <div class="bottom">
+    <div class="hero" aria-hidden="true"><img src={planche} alt="" width="1392" height="1400" /></div>
+
+    <section class="next" aria-live="polite">
+      {#if active}
+        <p class="kicker display">Тренировка идёт</p>
+        <p class="day display">{dayTitle(active.dayNumber)}</p>
+        {#if active.dayName}<p class="day-name display">{active.dayName}</p>{/if}
+      {:else if next !== undefined}
+        <p class="kicker display">Следующая тренировка</p>
+        {#if next}
+          <p class="day display">{dayTitle(dayNumber(next))}</p>
+          {#if next.name}<p class="day-name display">{next.name}</p>{/if}
+        {:else}
+          <p class="day display">Программа пуста</p>
+        {/if}
       {/if}
+    </section>
+
+    {#if active}
+      <Button icon="play" trailing="chevron-right" to="/workout">Продолжить тренировку</Button>
+    {:else if next}
+      <Button icon="play" trailing="chevron-right" onclick={start}>Начать тренировку</Button>
+    {:else if next === null}
+      <Button icon="plus" to="/days">Создать день</Button>
     {/if}
-  </section>
 
-  {#if active}
-    <Button icon="play" trailing="chevron-right" to="/workout">Продолжить тренировку</Button>
-  {:else if next}
-    <Button icon="play" trailing="chevron-right" onclick={start}>Начать тренировку</Button>
-  {:else if next === null}
-    <Button icon="plus" to="/days">Создать день</Button>
-  {/if}
-
-  <nav class="tiles" aria-label="Разделы">
-    <a href="#/history"><Icon name="history" size={46} /><span>История</span></a>
-    <!-- Wide and short: drawn larger so it is about 1.4× the chart's height, as in the reference. -->
-    <a href="#/program"><Icon name="dumbbell" size={64} /><span>Программа</span></a>
-    <a href="#/settings"><Icon name="settings" size={46} /><span>Настройки</span></a>
-  </nav>
+    <nav class="tiles" aria-label="Разделы">
+      <a href="#/history"><Icon name="history" size={46} /><span>История</span></a>
+      <!-- Wide and short: drawn larger so it is about 1.4× the chart's height, as in the reference. -->
+      <a href="#/program"><Icon name="dumbbell" size={64} /><span>Программа</span></a>
+      <a href="#/settings"><Icon name="settings" size={46} /><span>Настройки</span></a>
+    </nav>
+  </div>
 </main>
 
 <style>
+  /* The gutter on every edge, plus the phone's safe area at the top and bottom. The top
+     padding belongs to the header: the illustration may run up to the very edge. */
+  /* Exactly as tall as the screen. A flex column, not a one-cell grid with align-self: end:
+     WebKit left such a grid item where it was when content loaded into it later, hanging
+     below the screen. */
   .home {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    justify-content: flex-end;
+    height: 100dvh;
+    padding-top: 0;
+    padding-bottom: calc(var(--safe-bottom) + var(--gutter));
   }
 
-  /* Picture and header share one grid cell; the cell reaches up over the screen's top padding. */
-  .masthead {
-    display: grid;
-    /* minmax(0, …): otherwise the column grows to the image's 1390px intrinsic width. */
-    grid-template-columns: minmax(0, 1fr);
-    margin-top: calc(-1 * var(--screen-pad-top));
-  }
-
-  .masthead > * {
-    grid-area: 1 / 1;
-  }
-
+  /* Opaque and full width: the illustration never shows through the brand and is cut on a
+     straight line below it. The bottom padding makes the gap from the brand's baseline to that
+     line about the one between «Тренировка идёт» and «День N» (baseline to capitals, ~13px). */
   .top {
-    position: relative;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
     z-index: 1;
     display: flex;
-    align-self: start;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding-top: calc(var(--screen-pad-top) + 12px);
+    padding: calc(var(--safe-top) + var(--gutter)) var(--gutter) 11px;
+    background: var(--c-bg);
   }
 
+  /* Each line's negative margin lifts the top of its capitals onto the padding line, so the
+     brand and the date start at the same height whatever size fitText gives the brand. */
   .brand {
+    --lh: 0.95;
     flex: 1;
     min-width: 0;
+    margin-top: calc((var(--oswald-cap) - (var(--lh) + var(--oswald-ascent) - var(--oswald-descent)) / 2) * 1em);
     font-size: var(--fs-hero);
+    line-height: var(--lh);
   }
 
   .date {
+    --lh: 1.15;
     display: grid;
-    padding-top: 6px;
+    margin-top: calc((var(--oswald-cap) - (var(--lh) + var(--oswald-ascent) - var(--oswald-descent)) / 2) * 1em);
     padding-bottom: 6px;
     border-bottom: 2px solid var(--c-cream);
     font-weight: 500;
     font-size: 17px;
-    line-height: 1.15;
+    line-height: var(--lh);
     white-space: nowrap;
   }
 
-  .hero {
-    margin: 0 calc(-1 * var(--gutter));
+  /* At most the screen's height; only the illustration may shrink to fit. */
+  .bottom {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    gap: 14px;
   }
 
-  /* Full width at the illustration's own proportions (from the width/height attributes). */
+  /* Shrinks from the top: the picture stays anchored to its bottom edge, where the athlete is. */
+  .hero {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: flex-end;
+    min-height: 0;
+    margin: 0 calc(-1 * var(--gutter));
+    overflow: hidden;
+  }
+
+  /* Full width at the illustration's own proportions (from the width/height attributes).
+     Lighten raises any black darker than --c-bg to exactly --c-bg, so the picture has no
+     visible edge where it meets the background, and leaves every other colour as it is. */
   .hero img {
+    flex: none;
     width: 100%;
     height: auto;
+    mix-blend-mode: lighten;
   }
 
   /* align-content: start keeps the line spacing fixed; stretched rows would pad it. */
