@@ -10,6 +10,7 @@ Mobile workout-program app: static PWA (Vite + Svelte 5 + TypeScript), data on t
 - Users get new versions through the service worker (`registerType: 'autoUpdate'`). Data stays on their device, so a schema change must ship as a new Dexie `version()` that migrates existing data.
 
 ## Read first
+- `docs/APP_OVERVIEW.md`: **start here.** What the app is today: every screen, the product rules in short, the data model, the visual system, and which tests guard styling. Keep it current when a feature or screen changes.
 - `docs/ATLETIKA_PRODUCT_SPEC.md`: the product brief.
 - `docs/DECISIONS.md`: later decisions; they override the spec. Lists the provisional choices in the draft.
 - `docs/TYPOGRAPHY.md`: Oswald for display text and buttons, Roboto Condensed for interface text.

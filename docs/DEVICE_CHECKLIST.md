@@ -3,7 +3,7 @@
 Automated tests run in desktop WebKit and Chromium. Before calling a build ready, check these on a real iPhone (Safari) and a real Android phone (Chrome). Use the GitHub Pages site: the app must be served over **HTTPS**, because installation and offline mode do not work over plain `http://` on a local network address.
 
 ## Install
-- [ ] iPhone: Safari → Share → «На экран Домой». The icon and the name «Атлетика» look right.
+- [ ] iPhone: Safari → Share → «На экран Домой». The icon and the name «АТЛЕТИКА» look right.
 - [ ] Android: Chrome offers to install the app, or ⋮ → «Установить приложение».
 - [ ] The installed app opens full screen, without browser bars.
 - [ ] The status bar area and the bottom home indicator do not cover content.
