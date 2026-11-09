@@ -1,5 +1,6 @@
 <!-- After a workout: what was done, and «Поделиться» for sending the result in a message. -->
 <script lang="ts">
+  import clipboard from '../assets/illustrations/clipboard.webp';
   import { onMount } from 'svelte';
   import { getWorkout } from '../lib/db/repo';
   import { dayTitle, formatDateParts } from '../lib/domain/format';
@@ -72,6 +73,10 @@
 <main class="screen summary">
   <ScreenHeader
     {back}
+    art={fromHistory ? clipboard : undefined}
+    artLayout="behind"
+    artRatio={16 / 9}
+    artSlant={false}
     kicker={fromHistory ? 'Тренировка' : 'Тренировка завершена'}
     title={workout ? dayTitle(workout.dayNumber) : 'Итоги'}
   />

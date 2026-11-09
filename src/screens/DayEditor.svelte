@@ -116,7 +116,7 @@
     <ScreenHeader back={{ to: '/days', label: 'Дни' }} title="День не найден" />
   {:else}
     <!-- Like every header picture, the runner ends just below the title (2026-11-08). -->
-    <ScreenHeader back={{ to: '/days', label: 'Дни' }} title={title} size="hero" art={runner} />
+    <ScreenHeader back={{ to: '/days', label: 'Дни' }} title={title} size="hero" art={runner} artPosition="center" />
 
     <label class="name-field">
       <span class="visually-hidden">Название дня</span>

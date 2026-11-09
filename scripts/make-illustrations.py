@@ -18,9 +18,12 @@ OUT = ROOT / "src" / "assets" / "illustrations"
 ILLUSTRATIONS = {
     # 1392x1400 poster, already in the app's black and cream (replaced the wide 2026-11-08 one).
     "planche": ("supplied_2026-11-08/home-planche-square.png", (0, 0, 0, 0)),
-    "runner": ("visual_assets/illustrations/02_runner_right.png", (0, 0, 0, 0)),
+    # 1196x896, supplied 2026-11-09 (replaced the asset pack's 02_runner_right.png).
+    "runner": ("supplied_2026-11-09/days-runner-right.png", (0, 0, 0, 0)),
     "pushup-bars": ("visual_assets/illustrations/03_push_up_bars.png", (0, 14, 20, 0)),
     "gears": ("visual_assets/illustrations/04_settings_gears.png", (0, 22, 34, 0)),
+    # 1344x756 (16:9) clipboard and pen for the history screens, supplied 2026-11-09.
+    "clipboard": ("supplied_2026-11-09/history-clipboard.png", (0, 0, 0, 0)),
     # Background for headers without an illustration (Program, History, …).
     "header-bg": ("supplied_2026-11-05/header-background.png", (0, 0, 0, 0)),
 }

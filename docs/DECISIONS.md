@@ -2,6 +2,13 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-09
+
+### New artwork
+- **Runner** («Дни»): new artwork from the user (`docs/assets/supplied_2026-11-09/days-runner-right.png`, 1196×896, in the app's exact colours) replaces the asset pack's runner. It is centred in its windows: the Program card and the day screens' headers (Days list, day editor). The settings gears keep the right side of their picture.
+- **Program cards:** the push-up bars are cut at the same angle as the runner (both slants are set from the card's width, so they match on every phone).
+- **History clipboard:** History and a workout opened from History show the user's clipboard and pen (`supplied_2026-11-09/history-clipboard.png`, 16:9) instead of the black-and-red background. Like the push-up bars, it runs from the top edge to just below the title, in its own 16:9 box, so it is shown whole. It has no slanted cut: its left side is already the background's black. Its lower part fades out like every header picture. The summary right after a workout keeps the background image. «ИСТОРИЯ» is now limited to about two thirds of the width, as every poster title beside a picture.
+
 ## 2026-11-08
 
 ### Rest timer (replaces Active workout items 2 and the rest controls of 2026-11-05)

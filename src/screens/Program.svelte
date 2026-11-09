@@ -40,6 +40,8 @@
     border-radius: var(--radius-s);
     background: var(--c-cream);
     color: var(--c-ink);
+    /* cqw in the pictures' cut lines refers to the card's width. */
+    container-type: inline-size;
   }
 
   .label {
@@ -54,20 +56,23 @@
     z-index: 1;
   }
 
-  /* The illustrations are rectangular crops; a slanted left edge makes the cut look deliberate. */
+  /* The illustrations are rectangular crops; a slanted left edge makes the cut look deliberate.
+     Both cuts run at one angle: 19.2cqw across the runner's 230 px height (about 30% of its
+     box; cqw is the card's content width), the same slope over the bars' 133 px box. */
   .art {
     position: absolute;
     right: 0;
     bottom: 0;
     object-fit: cover;
     pointer-events: none;
-    clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%);
   }
 
   .days .art {
     width: 64%;
     height: 100%;
-    object-position: 60% center;
+    /* Centred: the artwork places the runner where the cut leaves room for him. */
+    object-position: center;
+    clip-path: polygon(19.2cqw 0, 100% 0, 100% 100%, 0 100%);
   }
 
   /* The box shape the exercise screens' headers use (app.css), at its base height. */
@@ -75,5 +80,6 @@
     width: calc(var(--bars-art-h) * var(--bars-art-ratio));
     height: var(--bars-art-h);
     object-position: center top;
+    clip-path: polygon(calc(19.2cqw * 133 / 230) 0, 100% 0, 100% 100%, 0 100%);
   }
 </style>

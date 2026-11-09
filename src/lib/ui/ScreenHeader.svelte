@@ -17,16 +17,24 @@
      * 'beside': cropped to fill the right side of the header from the top edge of the screen,
      *   partly behind the title. For tall illustrations (runner, gears).
      * 'behind': on the right, under the title, at the size the Program screen's «Упражнения»
-     *   card shows it (--bars-art-w × --bars-art-h). For the wide push-up bars.
+     *   card shows it (--bars-art-w × --bars-art-h). For wide pictures (push-up bars,
+     *   clipboard).
      */
     artLayout?: 'beside' | 'behind';
+    /** Width ÷ height of a 'behind' picture's box (default: the push-up bars' --bars-art-ratio). */
+    artRatio?: number;
+    /** Cut the picture's left edge on a slant (default). Off for a picture whose left side is
+     *  already the background's black, so all of it shows (the history clipboard). */
+    artSlant?: boolean;
+    /** CSS object-position of a 'beside' picture inside its cut window (default: its right side). */
+    artPosition?: string;
     /** Without an illustration: show the black-and-red background image (default) or nothing. */
     backdrop?: boolean;
     size?: 'hero' | 'title';
     aside?: Snippet;
   };
 
-  let { title, kicker, back, art, artLayout = 'beside', backdrop = true, size = 'title', aside }: Props = $props();
+  let { title, kicker, back, art, artLayout = 'beside', artRatio, artSlant = true, artPosition = 'right center', backdrop = true, size = 'title', aside }: Props = $props();
 </script>
 
 <header class="header" class:with-art={art}>
@@ -39,9 +47,9 @@
 
   <div class="hero {art ? artLayout : ''}">
     {#if art}
-      <div class="art" aria-hidden="true">
+      <div class="art" class:uncut={!artSlant} aria-hidden="true" style:--art-ratio={artRatio}>
         <AccentStripe class="art-stripe" />
-        <img src={art} alt="" />
+        <img src={art} alt="" style:object-position={artLayout === 'beside' ? artPosition : undefined} />
       </div>
     {:else if backdrop}
       <div class="backdrop" aria-hidden="true"><img src={headerBackground} alt="" /></div>
@@ -205,8 +213,12 @@
 
   .hero.behind .art {
     width: auto;
-    aspect-ratio: var(--bars-art-ratio);
+    aspect-ratio: var(--art-ratio, var(--bars-art-ratio));
     clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  .hero .art.uncut {
+    clip-path: none;
   }
 
   .hero.behind .art :global(.art-stripe) {

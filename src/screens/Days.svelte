@@ -29,7 +29,7 @@
 </script>
 
 <main class="screen">
-  <ScreenHeader back={{ to: '/program', label: 'Программа' }} title="Тренировочные дни" art={runner} />
+  <ScreenHeader back={{ to: '/program', label: 'Программа' }} title="Тренировочные дни" art={runner} artPosition="center" />
 
   {#if $days}
     {#if $days.length === 0}

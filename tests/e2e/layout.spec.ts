@@ -111,6 +111,29 @@ const BEHIND_SCREENS: Screen[] = [
   },
 ];
 
+/** Finishes demo Day 1 by skipping its four exercises: Home → workout → summary. */
+async function finishDemoDay1(page: Page) {
+  await loadDemo(page);
+  await page.goto('./');
+  await page.getByRole('button', { name: /начать тренировку/i }).click();
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: /пропустить упражнение/i }).click();
+  await expect(page.getByText(/тренировка завершена/i)).toBeVisible();
+}
+
+// The wide clipboard (2026-11-09): artLayout="behind" in its own 16:9 box, not cut on a slant.
+const CLIPBOARD_SCREENS: Screen[] = [
+  { name: 'History', open: (page) => page.goto('./#/history') },
+  {
+    name: 'workout opened from History',
+    open: async (page) => {
+      await finishDemoDay1(page);
+      await page.goto('./#/history');
+      await page.getByRole('link', { name: /посмотреть тренировку/i }).click();
+      await expect(page.getByRole('link', { name: /история/i })).toBeVisible();
+    },
+  },
+];
+
 test.describe('poster titles', () => {
   // A title box taller than its single line means header styles leaked onto it
   // (the "hero" size class once picked up the .hero container's min-height).
@@ -142,7 +165,7 @@ test.describe('poster titles', () => {
 });
 
 test.describe('header pictures end about 5 px below the title letters, darkened at the bottom', () => {
-  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS]) {
+  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS, ...CLIPBOARD_SCREENS]) {
     test(`on the ${screen.name} screen`, async ({ page }) => {
       await screen.open(page);
       await expect(page.locator('header h1')).toBeVisible();
@@ -163,7 +186,7 @@ test.describe('header pictures end about 5 px below the title letters, darkened 
     });
   }
 
-  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS]) {
+  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS, ...CLIPBOARD_SCREENS]) {
     test(`the ${screen.name} picture starts at the top edge of the screen`, async ({ page }) => {
       await screen.open(page);
       await expect(page.locator('header h1')).toBeVisible();
@@ -176,7 +199,7 @@ test.describe('header pictures end about 5 px below the title letters, darkened 
   // line along its bottom edge: at a fractional device pixel the picture showed through a dark
   // layer laid over it. The picture now fades out by a mask. Both test projects have
   // fractional scales (iPhone 3×, Android 2.625×) and positions.
-  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS]) {
+  for (const screen of [...BESIDE_SCREENS, ...BEHIND_SCREENS, ...CLIPBOARD_SCREENS]) {
     test(`no light line along the bottom of the ${screen.name} picture`, async ({ page }) => {
       await screen.open(page);
       await expect(page.locator('header h1')).toBeVisible();
@@ -276,18 +299,68 @@ test.describe('push-up bars: the Program card’s box shape, from the top edge, 
   });
 });
 
+test.describe('the history clipboard: whole, in its own 16:9 box', () => {
+  for (const screen of CLIPBOARD_SCREENS) {
+    test(`on the ${screen.name} screen`, async ({ page }) => {
+      await screen.open(page);
+      await expect(page.locator('header h1')).toBeVisible();
+      const g = await headerGeometry(page);
+      expect(g.art.width / g.art.height).toBeCloseTo(16 / 9, 2);
+      expect(g.art.height).toBeGreaterThanOrEqual(132);
+      // No slanted cut: its left side is already the background's black.
+      const style = await page.locator('header .art').evaluate((el) => {
+        const img = el.querySelector('img')!;
+        return { clip: getComputedStyle(el).clipPath, natural: img.naturalWidth / img.naturalHeight };
+      });
+      expect(style.clip).toBe('none');
+      // The picture's own shape, so cover crops nothing.
+      expect(style.natural).toBeCloseTo(g.art.width / g.art.height, 2);
+    });
+  }
+
+  test('the summary right after a workout keeps the background image', async ({ page }) => {
+    await finishDemoDay1(page);
+    await expect(page.locator('header .art')).toHaveCount(0);
+    await expect(page.locator('header .backdrop img')).toHaveCount(1);
+  });
+});
+
+test.describe('the runner (2026-11-09): centred in its windows', () => {
+  for (const path of ['./#/days', './#/program']) {
+    test(`on ${path.slice(4)}`, async ({ page }) => {
+      await page.goto(path);
+      const img = page.locator(path.endsWith('days') ? 'header .art img' : '.card.days img');
+      await expect(img).toBeVisible();
+      expect(await img.evaluate((el) => getComputedStyle(el).objectPosition)).toBe('50% 50%');
+    });
+  }
+
+  test('the gears keep the right side of their picture', async ({ page }) => {
+    await page.goto('./#/settings');
+    const img = page.locator('header .art img');
+    await expect(img).toBeVisible();
+    expect(await img.evaluate((el) => getComputedStyle(el).objectPosition)).toBe('100% 50%');
+  });
+
+  test('the Program cards cut both pictures at one angle', async ({ page }) => {
+    await page.goto('./#/program');
+    await expect(page.locator('.card.exercises img')).toBeVisible();
+    const slopes = await page.evaluate(() =>
+      ['.card.days .art', '.card.exercises .art'].map((selector) => {
+        const el = document.querySelector(selector)!;
+        // How far in from the left the cut starts at the top, per pixel of height.
+        const run = parseFloat(getComputedStyle(el).clipPath.match(/polygon\(([\d.]+)px/)![1]);
+        return run / el.getBoundingClientRect().height;
+      }),
+    );
+    expect(slopes[0]).toBeGreaterThan(0.2);
+    expect(slopes[1]).toBeCloseTo(slopes[0], 2);
+  });
+});
+
 test.describe('headers without an illustration: black-and-red background image', () => {
   const PLAIN_SCREENS: Screen[] = [
-    { name: 'History', open: (page) => page.goto('./#/history') },
-    {
-      name: 'Workout summary',
-      open: async (page) => {
-        await loadDemo(page);
-        await page.goto('./');
-        await page.getByRole('button', { name: /начать тренировку/i }).click();
-        for (let i = 0; i < 4; i++) await page.getByRole('button', { name: /пропустить упражнение/i }).click();
-      },
-    },
+    { name: 'Workout summary', open: finishDemoDay1 },
     {
       name: 'Series editor',
       open: async (page) => {
@@ -344,7 +417,7 @@ test.describe('headers without an illustration: black-and-red background image',
 
   test('screens with their own illustration do not get the background image', async ({ page }) => {
     await loadDemo(page);
-    for (const path of ['./#/days', './#/exercises', './#/settings']) {
+    for (const path of ['./#/days', './#/exercises', './#/settings', './#/history']) {
       await page.goto(path);
       await expect(page.locator('header h1')).toBeVisible();
       await expect(page.locator('header .backdrop')).toHaveCount(0);

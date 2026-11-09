@@ -6,6 +6,7 @@
   import { durationMinutes } from '../lib/domain/workout';
   import Button from '../lib/ui/Button.svelte';
   import Icon from '../lib/ui/Icon.svelte';
+  import clipboard from '../assets/illustrations/clipboard.webp';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
 
   const workouts = finishedWorkoutsQuery();
@@ -19,7 +20,15 @@
 </script>
 
 <main class="screen">
-  <ScreenHeader back={{ to: '/', label: 'Главная' }} title="История" size="hero" />
+  <ScreenHeader
+    back={{ to: '/', label: 'Главная' }}
+    title="История"
+    size="hero"
+    art={clipboard}
+    artLayout="behind"
+    artRatio={16 / 9}
+    artSlant={false}
+  />
 
   {#if $workouts}
     {#if !latest}
