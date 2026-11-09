@@ -356,6 +356,21 @@ test.describe('the runner (2026-11-09): centred in its windows', () => {
     expect(slopes[0]).toBeGreaterThan(0.2);
     expect(slopes[1]).toBeCloseTo(slopes[0], 2);
   });
+
+  test('the Program card labels «ДНИ» and «УПРАЖНЕНИЯ» share one size, and both fit', async ({ page }) => {
+    await page.goto('./#/program');
+    await expect(page.locator('.card.exercises .label')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const labels = await page.evaluate(() =>
+      ['.card.days .label', '.card.exercises .label'].map((selector) => {
+        const el = document.querySelector<HTMLElement>(selector)!;
+        return { size: parseFloat(getComputedStyle(el).fontSize), overflow: el.scrollWidth - el.clientWidth };
+      }),
+    );
+    expect(labels[1].size).toBeGreaterThanOrEqual(20);
+    expect(labels[0].size).toBe(labels[1].size);
+    for (const label of labels) expect(label.overflow).toBeLessThanOrEqual(1);
+  });
 });
 
 test.describe('headers without an illustration: black-and-red background image', () => {

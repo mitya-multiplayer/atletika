@@ -4,6 +4,9 @@
   import { fitText } from '../lib/ui/fitText';
   import Icon from '../lib/ui/Icon.svelte';
   import ScreenHeader from '../lib/ui/ScreenHeader.svelte';
+
+  // Both card labels share one size: the one «Упражнения» fits at. «Дни» alone would grow larger.
+  let labelSize = $state<number>();
 </script>
 
 <main class="screen">
@@ -12,12 +15,12 @@
   <nav class="cards" aria-label="Программа">
     <a class="card days" href="#/days">
       <img class="art" src={runner} alt="" />
-      <span class="label display" use:fitText={{ max: 96 }}>Дни</span>
+      <span class="label display" style:font-size={labelSize ? `${labelSize}px` : undefined}>Дни</span>
       <span class="chevron"><Icon name="chevron-right" size={30} /></span>
     </a>
     <a class="card exercises" href="#/exercises">
       <img class="art" src={bars} alt="" />
-      <span class="label display" use:fitText={{ max: 96 }}>Упражнения</span>
+      <span class="label display" use:fitText={{ max: 96, onfit: (px) => (labelSize = px) }}>Упражнения</span>
       <span class="chevron"><Icon name="chevron-right" size={30} /></span>
     </a>
   </nav>

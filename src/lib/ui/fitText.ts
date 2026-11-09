@@ -5,11 +5,12 @@
  * `max` so short poster titles fill the width as in the references.
  *
  * The element needs a definite width: inside flex or grid, give it min-width: 0.
+ * `onfit` receives the fitted size in px, so other text can follow it.
  */
-type FitOptions = { min?: number; max?: number };
+type FitOptions = { min?: number; max?: number; onfit?: (px: number) => void };
 
 export function fitText(node: HTMLElement, options: FitOptions = {}) {
-  let { min = 20, max } = options;
+  let { min = 20, max, onfit } = options;
 
   function fit() {
     node.style.fontSize = max ? `${max}px` : '';
@@ -18,6 +19,7 @@ export function fitText(node: HTMLElement, options: FitOptions = {}) {
       size -= 2;
       node.style.fontSize = `${size}px`;
     }
+    onfit?.(size);
   }
 
   // Observe the parent: the node's own height changes while fitting.
@@ -33,7 +35,7 @@ export function fitText(node: HTMLElement, options: FitOptions = {}) {
 
   return {
     update(next: FitOptions = {}) {
-      ({ min = 20, max } = next);
+      ({ min = 20, max, onfit } = next);
       fit();
     },
     destroy() {
