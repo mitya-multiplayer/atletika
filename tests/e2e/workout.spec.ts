@@ -251,6 +251,34 @@ test('the set count stays on one line next to the repetitions controls', async (
   expect(lines).toBe(1);
 });
 
+test.describe('the set and repetitions figures fit their panel', () => {
+  const more = (page: Page) => page.getByRole('button', { name: 'Повторения: больше' });
+
+  /** How far the panel's content runs past its inner edge (0 when it fits). */
+  const overrun = (page: Page) =>
+    page.locator('.panel.figures').evaluate((panel) => {
+      const cs = getComputedStyle(panel);
+      const inner = panel.getBoundingClientRect().right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+      const plus = panel.querySelectorAll('.adjust')[1].getBoundingClientRect().right;
+      return Math.max(panel.scrollWidth - panel.clientWidth, plus - inner);
+    });
+
+  // iPhone 13 mini and iPhone SE (1st generation) widths.
+  for (const width of [375, 320]) {
+    test(`«1/3» and two-digit repetitions at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 812 });
+      await startWorkout(page);
+      for (let i = 0; i < 4; i++) await more(page).click();
+      await expect(page.getByRole('group', { name: 'Повторения' }).locator('output')).toHaveText('12');
+      await page.evaluate(() => document.fonts.ready);
+      await expect.poll(() => overrun(page)).toBeLessThanOrEqual(1);
+      // A bit smaller than the 72 px they had.
+      const size = await page.locator('.panel.figures .count').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      expect(size).toBeLessThanOrEqual(60);
+    });
+  }
+});
+
 test('the set screen buttons fit their labels on one line', async ({ page }) => {
   await startWorkout(page);
   for (const name of [/завершить подход/i, /пропустить упражнение/i]) {
@@ -270,8 +298,8 @@ test('the set screen: no shadow under the name, «1/3» tight, the divider space
   await page.evaluate(() => document.fonts.ready);
   await expect(page.getByRole('heading', { level: 1 })).toHaveCSS('text-shadow', 'none');
 
-  const g = await page.locator('.panel.figures').evaluate((panel) => {
-    const [setCol, repsCol] = [...panel.children] as HTMLElement[];
+  const g = await page.locator('.panel.figures .cols').evaluate((cols) => {
+    const [setCol, repsCol] = [...cols.children] as HTMLElement[];
     const count = setCol.querySelector('.big')!;
     const range = document.createRange();
     range.selectNodeContents(count);
@@ -305,14 +333,61 @@ test('the set screen: no shadow under the name, «1/3» tight, the divider space
   expect(Math.abs(g.labelOffCentre)).toBeLessThanOrEqual(1);
 });
 
-test('a name on two lines has room between them; a one-line name keeps its place', async ({ page }) => {
-  // Long enough to wrap at any phone width; the workout copies the name when it starts.
+/** Renames the demo «Жим лёжа», the first exercise of Day 1; a workout copies the name when it starts. */
+async function renameBenchPress(page: Page, name: string) {
   await page.goto('./#/exercises');
   await page.getByRole('link', { name: 'Жим лёжа' }).click();
-  await page.getByLabel('Название').fill('Жим лёжа на наклонной скамье');
+  await page.getByLabel('Название').fill(name);
   await page.getByRole('button', { name: /сохранить/i }).click();
   await expect(page.getByRole('heading', { level: 1, name: /упражнения/i })).toBeVisible();
   await page.goto('./');
+}
+
+/** The set screen's exercise name: its lines, font size, and whether it runs past its box. */
+const nameLayout = (page: Page) =>
+  page.getByRole('heading', { level: 1 }).evaluate((h) => {
+    const range = document.createRange();
+    range.selectNodeContents(h);
+    return {
+      lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size,
+      size: parseFloat(getComputedStyle(h).fontSize),
+      overflow: h.scrollWidth - h.clientWidth,
+    };
+  });
+
+test.describe('the exercise name takes at most three lines', () => {
+  // iPhone 13 mini and iPhone SE (1st generation) widths.
+  for (const width of [375, 320]) {
+    for (const name of ['Стойка на руках у стены', 'Шраги в стойке на руках', 'Жим гантелей сидя на наклонной скамье']) {
+      test(`«${name}» at ${width} px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 812 });
+        await renameBenchPress(page, name);
+        await startWorkout(page);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText(new RegExp(name, 'i'));
+        await page.evaluate(() => document.fonts.ready);
+        await expect.poll(async () => (await nameLayout(page)).lines).toBeLessThanOrEqual(3);
+        const g = await nameLayout(page);
+        expect(g.overflow).toBeLessThanOrEqual(1);
+        expect(g.size).toBeGreaterThanOrEqual(20);
+      });
+    }
+  }
+
+  test('a short name stays large', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await renameBenchPress(page, 'Жим');
+    await startWorkout(page);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^жим$/i);
+    await page.evaluate(() => document.fonts.ready);
+    const g = await nameLayout(page);
+    expect(g.lines).toBe(1);
+    expect(g.size).toBe(96);
+  });
+});
+
+test('a name on two lines has room between them; a one-line name keeps its place', async ({ page }) => {
+  // Long enough to wrap at any phone width; the workout copies the name when it starts.
+  await renameBenchPress(page, 'Жим лёжа на наклонной скамье');
   await startWorkout(page);
 
   const heading = page.getByRole('heading', { level: 1 });
@@ -362,6 +437,17 @@ test('finishing a set starts its rest; past 0:00 the timer counts on below zero 
   const timer = page.getByRole('timer');
   await expect(timer).not.toHaveCSS('animation-name', 'none');
   await expect(timer).toHaveCSS('color', 'rgb(247, 237, 224)');
+  // A quick pulse that fades out completely (was 1.6 s, down to 0.35).
+  const pulse = await timer.evaluate((el) => {
+    const effect = el.getAnimations()[0].effect as KeyframeEffect;
+    return {
+      duration: Number(effect.getComputedTiming().duration),
+      opacities: effect.getKeyframes().map((k) => Number(k.opacity ?? 1)),
+    };
+  });
+  expect(pulse.duration).toBeLessThanOrEqual(1200);
+  expect(Math.min(...pulse.opacities)).toBe(0);
+  expect(Math.max(...pulse.opacities)).toBe(1);
   const fit = await timer.evaluate((el) => {
     const range = document.createRange();
     range.selectNodeContents(el);

@@ -5,17 +5,26 @@
  * `max` so short poster titles fill the width as in the references.
  *
  * The element needs a definite width: inside flex or grid, give it min-width: 0.
+ * With `maxLines`, it also shrinks until the text wraps to at most that many lines.
  * `onfit` receives the fitted size in px, so other text can follow it.
  */
-type FitOptions = { min?: number; max?: number; onfit?: (px: number) => void };
+type FitOptions = { min?: number; max?: number; maxLines?: number; onfit?: (px: number) => void };
 
 export function fitText(node: HTMLElement, options: FitOptions = {}) {
-  let { min = 20, max, onfit } = options;
+  let { min = 20, max, maxLines, onfit } = options;
+
+  function tooBig() {
+    if (node.scrollWidth > node.clientWidth + 1) return true;
+    if (!maxLines) return false;
+    const cs = getComputedStyle(node);
+    const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2; // 'normal'
+    return node.getBoundingClientRect().height > maxLines * lineHeight + 1;
+  }
 
   function fit() {
     node.style.fontSize = max ? `${max}px` : '';
     let size = parseFloat(getComputedStyle(node).fontSize);
-    while (node.scrollWidth > node.clientWidth + 1 && size > min) {
+    while (tooBig() && size > min) {
       size -= 2;
       node.style.fontSize = `${size}px`;
     }
@@ -35,7 +44,7 @@ export function fitText(node: HTMLElement, options: FitOptions = {}) {
 
   return {
     update(next: FitOptions = {}) {
-      ({ min = 20, max, onfit } = next);
+      ({ min = 20, max, maxLines, onfit } = next);
       fit();
     },
     destroy() {

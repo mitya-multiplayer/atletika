@@ -2,6 +2,13 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-11
+
+### Workout screen, from a review on an iPhone 13 mini
+- **Rest timer past 0:00** pulses faster (1.2 s instead of 1.6 s) and fades out completely (opacity 0 instead of 0.35).
+- **Set count and repetitions** («1/3», «− 12 +») are 60 px instead of 72 px, and shrink further when they would not fit the panel (a two-digit count, three-digit repetitions, a narrow phone).
+- **Exercise name** takes at most three lines: it starts at 96 px and shrinks until it fits three lines (and its longest word fits the width). Before, short words kept it at 96 px, so «Стойка на руках у стены» took five lines.
+
 ## 2026-11-09
 
 ### New artwork

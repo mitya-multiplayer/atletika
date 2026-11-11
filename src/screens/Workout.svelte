@@ -126,7 +126,7 @@
             Упражнение {exercise.block + 1} из {blockCount(workout)}
           {/if}
         </p>
-        <h1 class="exercise display" use:fitText={{ max: 96 }}>{exercise.name}</h1>
+        <h1 class="exercise display" use:fitText={{ max: 96, maxLines: 3 }}>{exercise.name}</h1>
       </section>
 
       {#if description || video}
@@ -138,40 +138,45 @@
         </section>
       {/if}
 
+      <!-- The figures are sized in em of .cols: 60 px, smaller if a long count or three-digit
+           repetitions would not fit a narrow phone. .cols has no padding, so fitText sees content
+           that would run into the panel's padding. -->
       <div class="panel figures">
-        <div>
-          <span class="label">{exercise.series ? 'Круг' : 'Подход'}</span>
-          <span class="big display count"
-            >{step!.set + 1}/{exercise.series?.rounds ?? exercise.sets.length}</span
-          >
-        </div>
-        <div class="reps-column">
-          <span class="label">Повторения</span>
-          <!-- The repetitions actually done: start at the plan, adjusted before «Завершить подход». -->
-          <div class="reps" role="group" aria-label="Повторения">
-            <button
-              type="button"
-              class="adjust"
-              aria-label="Повторения: меньше"
-              disabled={reps <= ACTUAL_REPS_MIN}
-              onclick={() => act((w) => setActualReps(w, currentReps(w) - 1))}
+        <div class="cols" use:fitText={{ max: 60 }}>
+          <div>
+            <span class="label">{exercise.series ? 'Круг' : 'Подход'}</span>
+            <span class="big display count"
+              >{step!.set + 1}/{exercise.series?.rounds ?? exercise.sets.length}</span
             >
-              <Icon name="minus" size={20} />
-            </button>
-            <output class="big display" class:long={reps >= 100}>{reps}</output>
-            <button
-              type="button"
-              class="adjust"
-              aria-label="Повторения: больше"
-              disabled={reps >= ACTUAL_REPS_MAX}
-              onclick={() => act((w) => setActualReps(w, currentReps(w) + 1))}
-            >
-              <Icon name="plus" size={20} />
-            </button>
           </div>
-          {#if reps !== exercise.sets[step!.set].reps}
-            <span class="plan">план {exercise.sets[step!.set].reps}</span>
-          {/if}
+          <div class="reps-column">
+            <span class="label">Повторения</span>
+            <!-- The repetitions actually done: start at the plan, adjusted before «Завершить подход». -->
+            <div class="reps" role="group" aria-label="Повторения">
+              <button
+                type="button"
+                class="adjust"
+                aria-label="Повторения: меньше"
+                disabled={reps <= ACTUAL_REPS_MIN}
+                onclick={() => act((w) => setActualReps(w, currentReps(w) - 1))}
+              >
+                <Icon name="minus" size={20} />
+              </button>
+              <output class="big display" class:long={reps >= 100}>{reps}</output>
+              <button
+                type="button"
+                class="adjust"
+                aria-label="Повторения: больше"
+                disabled={reps >= ACTUAL_REPS_MAX}
+                onclick={() => act((w) => setActualReps(w, currentReps(w) + 1))}
+              >
+                <Icon name="plus" size={20} />
+              </button>
+            </div>
+            {#if reps !== exercise.sets[step!.set].reps}
+              <span class="plan">план {exercise.sets[step!.set].reps}</span>
+            {/if}
+          </div>
         </div>
       </div>
 
@@ -308,9 +313,9 @@
     font-size: clamp(76px, 25vw, 122px);
   }
 
-  /* Past 0:00 the time counts on below zero and fades in and out, in the same colour. */
+  /* Past 0:00 the time counts on below zero and fades out completely and back, in the same colour. */
   .timer.over {
-    animation: rest-over 1.6s ease-in-out infinite;
+    animation: rest-over 1.2s ease-in-out infinite;
   }
 
   @keyframes rest-over {
@@ -319,7 +324,7 @@
       opacity: 1;
     }
     50% {
-      opacity: 0.35;
+      opacity: 0;
     }
   }
 
@@ -350,23 +355,28 @@
     padding: 14px 18px;
   }
 
-  /* The set column takes what «1 / 3» needs; the repetitions with − / + get the rest. */
-  .figures {
+  /* The set column takes what «1 / 3» needs; the repetitions with − / + get the rest.
+     .cols on the set screen, .figures.small in the rest screen's «next» panel. */
+  .cols,
+  .figures.small {
     display: grid;
     grid-template-columns: auto 1fr;
   }
 
-  .figures > div {
+  .cols > div,
+  .figures.small > div {
     display: grid;
     gap: 2px;
   }
 
   /* The same gap on both sides of the divider. */
-  .figures > div:first-child {
+  .cols > div:first-child,
+  .figures.small > div:first-child {
     padding-right: 18px;
   }
 
-  .figures > div + div {
+  .cols > div + div,
+  .figures.small > div + div {
     padding-left: 18px;
     border-left: 1px solid var(--c-panel-line);
   }
@@ -383,7 +393,7 @@
   }
 
   .big {
-    font-size: 72px;
+    font-size: 1em;
     line-height: 1;
     white-space: nowrap;
   }
@@ -401,7 +411,7 @@
   }
 
   .reps .big.long {
-    font-size: 52px;
+    font-size: 0.72em;
   }
 
   .adjust {
