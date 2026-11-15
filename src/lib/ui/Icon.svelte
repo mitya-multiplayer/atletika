@@ -27,6 +27,8 @@
     // Share (2026-11-08, from the user's sketch): an arrowhead pointing right, its tail curving
     // down to a point at the bottom left. Centred: x 6–58, y 8–56.
     share: { fill: 'M38 8L58 28L38 48V36C22 36 11.5 42 6 56C6.5 35 19 20 38 20Z' },
+    // Copy (2026-11-15, option A of docs/mockups/copy-icon-*.png): two outlined sheets, x and y 10–54.
+    copy: { stroke: 'M28 24H50a4 4 0 0 1 4 4V50a4 4 0 0 1-4 4H28a4 4 0 0 1-4-4V28a4 4 0 0 1 4-4ZM10 42V14a4 4 0 0 1 4-4h28' },
     'arrow-left': { stroke: 'M54 32H12M28 14L10 32l18 18' },
     'chevron-right': { stroke: 'M24 12l20 20-20 20' },
     search: { stroke: 'M28 10a18 18 0 1 0 0 36a18 18 0 1 0 0-36ZM41 41l14 14' },

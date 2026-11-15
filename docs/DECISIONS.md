@@ -2,6 +2,12 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-15
+
+- **Summary: copy button.** A cream copy icon button sits 12 px left of the share button (summary after a workout and from History). Icon: option A of `docs/mockups/copy-icon-a…d.png` (two outlined sheets). The share button now shows only where the browser has a share sheet; if sharing fails, it still copies. After copying, «Скопировано!» shows above the buttons for 2 s, out of the layout: cream Roboto Condensed text, regular weight, as typed (not uppercased), with no background, left-aligned with the copy button (right-aligned when there is no share button, so it stays on screen).
+- **Rest timer past 0:00** blinks once a second: visible, a 100 ms fade out, hidden, a 100 ms fade back. The blink is locked to the time: it is hidden from 100 ms before each change of the seconds to 300 ms after (the screen redraws every 250 ms), also when the app is reopened past 0:00.
+- **Rest timer digits** each take the width of «0», the widest Oswald digit, imitating a monospaced font: the time no longer shifts as it counts. It stays centred, the minus first.
+
 ## 2026-11-11
 
 ### Workout screen, from a review on an iPhone 13 mini

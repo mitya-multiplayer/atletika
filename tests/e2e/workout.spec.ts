@@ -437,17 +437,23 @@ test('finishing a set starts its rest; past 0:00 the timer counts on below zero 
   const timer = page.getByRole('timer');
   await expect(timer).not.toHaveCSS('animation-name', 'none');
   await expect(timer).toHaveCSS('color', 'rgb(247, 237, 224)');
-  // A quick pulse that fades out completely (was 1.6 s, down to 0.35).
+  // Blinks once a second, fading out completely and back, each fade at most 100 ms.
   const pulse = await timer.evaluate((el) => {
     const effect = el.getAnimations()[0].effect as KeyframeEffect;
     return {
       duration: Number(effect.getComputedTiming().duration),
-      opacities: effect.getKeyframes().map((k) => Number(k.opacity ?? 1)),
+      frames: effect.getKeyframes().map((k) => ({ offset: k.computedOffset, opacity: Number(k.opacity ?? 1) })),
     };
   });
-  expect(pulse.duration).toBeLessThanOrEqual(1200);
-  expect(Math.min(...pulse.opacities)).toBe(0);
-  expect(Math.max(...pulse.opacities)).toBe(1);
+  expect(pulse.duration).toBe(1000);
+  expect(Math.min(...pulse.frames.map((f) => f.opacity))).toBe(0);
+  expect(Math.max(...pulse.frames.map((f) => f.opacity))).toBe(1);
+  const fades = pulse.frames.slice(1).filter((f, i) => f.opacity !== pulse.frames[i].opacity);
+  expect(fades).toHaveLength(2);
+  for (const f of fades) {
+    const from = pulse.frames[pulse.frames.indexOf(f) - 1];
+    expect((f.offset - from.offset) * pulse.duration).toBeLessThanOrEqual(100.5);
+  }
   const fit = await timer.evaluate((el) => {
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -462,6 +468,79 @@ test('finishing a set starts its rest; past 0:00 the timer counts on below zero 
   await endRest(page);
   await expectSet(page, /жим лёжа/i, '2/3', 8);
 });
+
+test('the timer digits each take one width, so the time stays put; it stays centred, the minus at the left', async ({ page }) => {
+  await startWorkout(page);
+  await complete(page);
+  await page.evaluate(() => document.fonts.ready);
+  const timer = page.getByRole('timer');
+  const layout = () =>
+    timer.evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const text = range.getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      return {
+        text: el.textContent,
+        width: text.width,
+        offCentre: (text.left + text.right) / 2 - (box.left + box.right) / 2,
+        digits: [...el.querySelectorAll('.digit')].map((d) => d.getBoundingClientRect().width),
+        first: el.firstElementChild!.getBoundingClientRect().left - text.left,
+      };
+    });
+  await expectTimer(page, 90);
+  const a = await layout();
+  // «01:30» → «01:11»: «3» and «0» become two «1», the narrowest digit; the width stays.
+  await page.clock.fastForward(19_000);
+  await expectTimer(page, 71);
+  await expect(timer).toHaveText(/^01:1\d$/);
+  const b = await layout();
+  expect(new Set([...a.digits, ...b.digits]).size).toBe(1);
+  expect(Math.abs(b.width - a.width)).toBeLessThan(0.5);
+  for (const g of [a, b]) expect(Math.abs(g.offCentre)).toBeLessThanOrEqual(1);
+  // Past 0:00 the minus comes first, at the left, and the whole time is still centred.
+  await page.clock.fastForward(75_000);
+  await expect(timer).toHaveText(/^−00:0\d$/);
+  const c = await layout();
+  expect(c.text!.startsWith('−')).toBe(true);
+  expect(Math.abs(c.first)).toBeLessThanOrEqual(1);
+  expect(Math.abs(c.offCentre)).toBeLessThanOrEqual(1);
+  expect(c.digits.every((w) => w === a.digits[0])).toBe(true);
+});
+
+// The blink starting at 0:00 lines up with the seconds by itself; the app reopened later must line up too.
+for (const [name, gap] of [['at 0:00', 0], ['after reopening the app', 1], ['after reopening, mid-second', 1.6]] as const) {
+  test(`past 0:00 the time changes only while the blink hides it, ${name}`, async ({ page }) => {
+    await startWorkout(page);
+    await complete(page);
+    await page.clock.fastForward(95_000);
+    const timer = page.getByRole('timer');
+    await expect(timer).toHaveText(/^−00:0\d$/);
+    if (gap) {
+      await page.clock.fastForward(Math.round(gap * 1000) + 330);
+      await page.reload();
+    }
+    await expect(timer).toHaveText(/^−00:\d\d$/);
+    // Every frame for 3 s: the text and how visible it is.
+    const samples = await timer.evaluate(async (el) => {
+      const out: { text: string; opacity: number }[] = [];
+      const end = performance.now() + 3000;
+      while (performance.now() < end) {
+        out.push({ text: el.textContent!, opacity: Number(getComputedStyle(el).opacity) });
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      return out;
+    });
+    const changes = samples.flatMap((s, i) => (i > 0 && s.text !== samples[i - 1].text ? [i] : []));
+    expect(changes.length).toBeGreaterThanOrEqual(2);
+    for (const i of changes) {
+      expect(samples[i - 1].opacity, `before ${samples[i].text}`).toBeLessThan(0.05);
+      expect(samples[i].opacity, `at ${samples[i].text}`).toBeLessThan(0.05);
+    }
+    // And it is shown in between.
+    expect(Math.max(...samples.map((s) => s.opacity))).toBe(1);
+  });
+}
 
 test('the rest screen has only «Завершить отдых», right under the timer', async ({ page }) => {
   await startWorkout(page);
@@ -645,8 +724,13 @@ test('a day without exercises cannot be started', async ({ page }) => {
 
 test.describe('sharing the summary', () => {
   const shareButton = (page: Page) => page.getByRole('button', { name: /поделиться/i });
-  // Without a share sheet the same icon button copies; there is no «Копировать» button.
   const copyButton = (page: Page) => page.getByRole('button', { name: /скопировать итоги/i });
+  const copiedLabel = (page: Page) => page.locator('.corner .copied');
+  const box = (page: Page, selector: string) =>
+    page.locator(selector).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    });
 
   /** Finishes Day 1 by skipping every exercise, then reloads with the given share sheet. */
   async function openSummary(
@@ -689,6 +773,49 @@ test.describe('sharing the summary', () => {
     expect(lastBottom).toBeLessThanOrEqual(buttonTop);
   });
 
+  test('a cream copy icon left of the share icon, level with it, 12 px apart', async ({ page }) => {
+    await openSummary(page, 'share');
+    await expect(copyButton(page).locator('svg[data-icon="copy"]')).toHaveCount(1);
+    await expect(copyButton(page)).toHaveText('');
+    await expect(copyButton(page)).toHaveCSS('background-color', 'rgb(247, 237, 224)');
+    const copy = (await copyButton(page).boundingBox())!;
+    const share = (await shareButton(page).boundingBox())!;
+    expect(Math.abs(share.x - (copy.x + copy.width) - 12)).toBeLessThan(1);
+    expect(Math.abs(share.y - copy.y)).toBeLessThan(1);
+    expect(copy.width).toBe(share.width);
+    expect(copy.height).toBe(share.height);
+  });
+
+  test('copying shows «Скопировано!» above the buttons, from the copy button’s left edge, for 2 s; nothing moves', async ({ page }) => {
+    await openSummary(page, 'share');
+    const before = await Promise.all(['.corner', '.results', '.actions-bottom'].map((s) => box(page, s)));
+    await expect(copiedLabel(page)).toHaveCount(0);
+    await copyButton(page).click();
+    await expect(copiedLabel(page)).toHaveText(/скопировано!/i);
+    await expect(page.getByRole('status')).toHaveText(/скопировано/i);
+    const result = await sharingResult(page);
+    expect(result.copied!.split('\n')[0]).toBe('Атлетика · День 1 · Верх тела');
+    expect(result.shareCalls ?? 0).toBe(0);
+
+    const after = await Promise.all(['.corner', '.results', '.actions-bottom'].map((s) => box(page, s)));
+    expect(after).toEqual(before);
+    const label = await box(page, '.corner .copied');
+    const corner = after[0];
+    expect(label.bottom).toBeLessThanOrEqual(corner.top - 4);
+    expect(Math.abs(label.left - (await copyButton(page).boundingBox())!.x)).toBeLessThanOrEqual(1);
+    expect(label.right).toBeLessThanOrEqual(await page.evaluate(() => document.documentElement.clientWidth));
+    // Cream text on the page background, no box of its own; Roboto Condensed, regular, as typed.
+    await expect(copiedLabel(page)).toHaveCSS('color', 'rgb(247, 237, 224)');
+    await expect(copiedLabel(page)).toHaveCSS('font-family', /Roboto Condensed/);
+    await expect(copiedLabel(page)).toHaveCSS('font-weight', '400');
+    await expect(copiedLabel(page)).toHaveCSS('text-transform', 'none');
+    await expect(copiedLabel(page)).toHaveText('Скопировано!');
+    await expect(copiedLabel(page)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+
+    await page.clock.fastForward(2500);
+    await expect(copiedLabel(page)).toHaveCount(0);
+  });
+
   test('«На главную» follows the results with a natural gap; «Скопировано» takes no room', async ({ page }) => {
     await openSummary(page, 'none');
     const g = await page.evaluate(() => {
@@ -710,7 +837,6 @@ test.describe('sharing the summary', () => {
 
   test('«Поделиться» opens the share sheet with the summary text, and copies nothing', async ({ page }) => {
     await openSummary(page, 'share');
-    await expect(copyButton(page)).toHaveCount(0);
     await shareButton(page).click();
     await expect.poll(async () => (await sharingResult(page)).shared).toBeTruthy();
     const result = await sharingResult(page);
@@ -723,6 +849,7 @@ test.describe('sharing the summary', () => {
     expect(result.shareCalls).toBe(1);
     expect(result.copied).toBeUndefined();
     await expect(page.getByRole('status')).toHaveText('');
+    await expect(copiedLabel(page)).toHaveCount(0);
   });
 
   test('closing the share sheet does nothing', async ({ page }) => {
@@ -753,16 +880,23 @@ test.describe('sharing the summary', () => {
     await openSummary(page, 'fail');
     await shareButton(page).click();
     await expect(page.getByRole('status')).toHaveText(/скопировано/i);
+    await expect(copiedLabel(page)).toBeVisible();
     const result = await sharingResult(page);
     expect(result.shareCalls).toBe(1);
     expect(result.copied).toContain('Атлетика · День 1 · Верх тела');
   });
 
-  test('without a share sheet (e.g. Firefox on a PC) the button copies', async ({ page }) => {
+  test('without a share sheet (e.g. Firefox on a PC) only the copy button, in the corner', async ({ page }) => {
     await openSummary(page, 'none');
     await expect(shareButton(page)).toHaveCount(0);
+    const right = await copyButton(page).evaluate((b) => document.documentElement.clientWidth - b.getBoundingClientRect().right);
+    expect(Math.abs(right - 18)).toBeLessThan(1);
     await copyButton(page).click();
     await expect(page.getByRole('status')).toHaveText(/скопировано/i);
+    // Wider than the one button under it: right-aligned with it, so it stays on screen.
+    const label = await box(page, '.corner .copied');
+    const button = (await copyButton(page).boundingBox())!;
+    expect(Math.abs(label.right - (button.x + button.width))).toBeLessThanOrEqual(1);
     const result = await sharingResult(page);
     expect(result.copied!.split('\n')[0]).toBe('Атлетика · День 1 · Верх тела');
     expect(result.shared).toBeUndefined();
@@ -775,6 +909,7 @@ test.describe('sharing the summary', () => {
     await expect(dialog).toContainText(/не удалось скопировать/i);
     await expect(dialog).toContainText('Атлетика · День 1 · Верх тела');
     await expect(page.getByRole('status')).toHaveText('');
+    await expect(copiedLabel(page)).toHaveCount(0);
   });
 
   test('no accessibility violations on the summary without a share sheet', async ({ page }) => {

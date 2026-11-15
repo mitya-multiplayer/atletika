@@ -101,6 +101,11 @@
   const timerText = $derived(formatTimer(remaining));
   /** Past 0:00: the timer shows a negative time and pulses. */
   const over = $derived(timerText.startsWith('−'));
+  // The time changes on whole seconds after the rest's end; this delay puts the blink's dark part over each change.
+  let blinkDelay = $state<string>();
+  $effect(() => {
+    blinkDelay = over && workout ? `${restRemainingMs(workout, Date.now())}ms` : undefined;
+  });
 </script>
 
 <main class="screen workout">
@@ -190,13 +195,15 @@
       <section class="stage rest">
         <AccentStripe class="stage-stripe" />
         <h1 class="display rest-title">Отдых</h1>
+        <!-- Each digit in its own cell, so the time does not shift as it counts. -->
         <p
           class="timer display"
           class:over
           class:long={timerText.length > 6}
+          style:animation-delay={blinkDelay}
           role="timer"
           aria-label={over ? `Отдых окончен ${timerText.slice(1)} назад` : `Осталось ${timerText}`}
-        >{timerText}</p>
+        >{#each timerText as char, i (i)}<span class:digit={char >= '0' && char <= '9'}>{char}</span>{/each}</p>
         <!-- Where «До следующего подхода» and «Подход 2 из 3» were (2026-11-08): the space stays,
              so «Завершить отдых» keeps its place. What comes next is in the panel below. -->
         <div class="rest-space" aria-hidden="true"></div>
@@ -304,8 +311,14 @@
   .timer {
     font-size: clamp(90px, 30vw, 146px);
     line-height: 0.9;
-    font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+
+  /* Oswald's digits differ in width; a cell as wide as «0», the widest, imitates a monospaced font. */
+  .timer .digit {
+    display: inline-block;
+    width: 0.55em;
+    text-align: center;
   }
 
   /* 100 minutes and more over: one digit more. */
@@ -313,18 +326,22 @@
     font-size: clamp(76px, 25vw, 122px);
   }
 
-  /* Past 0:00 the time counts on below zero and fades out completely and back, in the same colour. */
+  /* Past 0:00 the time blinks once a second: quick 100 ms fades, same colour. 0% is the second's change:
+     hidden from 100 ms before it to 300 ms after (the screen redraws every 250 ms). */
   .timer.over {
-    animation: rest-over 1.2s ease-in-out infinite;
+    animation: rest-over 1s linear infinite;
   }
 
   @keyframes rest-over {
     0%,
+    30%,
+    90%,
     100% {
-      opacity: 1;
-    }
-    50% {
       opacity: 0;
+    }
+    40%,
+    80% {
+      opacity: 1;
     }
   }
 
