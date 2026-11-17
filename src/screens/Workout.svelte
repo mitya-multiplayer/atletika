@@ -327,7 +327,8 @@
   }
 
   /* Past 0:00 the time blinks once a second: quick 100 ms fades, same colour. 0% is the second's change:
-     hidden from 100 ms before it to 300 ms after (the screen redraws every 250 ms). */
+     hidden from 100 ms before it to 300 ms after (the screen redraws every 250 ms). It fades the text colour,
+     not opacity: iPhone Safari did not redraw a time that changed under opacity 0 (docs/DECISIONS.md). */
   .timer.over {
     animation: rest-over 1s linear infinite;
   }
@@ -337,11 +338,11 @@
     30%,
     90%,
     100% {
-      opacity: 0;
+      color: rgb(247 237 224 / 0);
     }
     40%,
     80% {
-      opacity: 1;
+      color: var(--c-cream);
     }
   }
 

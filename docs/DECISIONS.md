@@ -2,9 +2,19 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-17
+
+- **Summary buttons** (copy, share) are 30% smaller: 42 px squares instead of 60 px, 24 px icons, 8 px apart,
+  `--radius-s` corners. They are below the 44 px `--tap` size; the user asked for this size.
+- **Fix: the rest timer stuck at «−00:01» on an iPhone 13 mini (Safari)** while it went on blinking. The blink
+  animated `opacity`, which iOS Safari runs on its own compositing layer; since the 2026-11-15 change the time
+  changes while the blink is at opacity 0, and Safari did not redraw the layer, so the first negative time stayed on
+  screen. Desktop WebKit (Playwright) redraws it, so the tests could not see it. The blink now fades the text colour
+  to transparent and back, which is painted normally; a test checks that the animation never uses `opacity`.
+
 ## 2026-11-15
 
-- **Summary: copy button.** A cream copy icon button sits 12 px left of the share button (summary after a workout and from History). Icon: option A of `docs/mockups/copy-icon-a…d.png` (two outlined sheets). The share button now shows only where the browser has a share sheet; if sharing fails, it still copies. After copying, «Скопировано!» shows above the buttons for 2 s, out of the layout: cream Roboto Condensed text, regular weight, as typed (not uppercased), with no background, left-aligned with the copy button (right-aligned when there is no share button, so it stays on screen).
+- **Summary: copy button.** A cream copy icon button sits 12 px (8 px since 2026-11-17) left of the share button (summary after a workout and from History). Icon: option A of `docs/mockups/copy-icon-a…d.png` (two outlined sheets). The share button now shows only where the browser has a share sheet; if sharing fails, it still copies. After copying, «Скопировано!» shows above the buttons for 2 s, out of the layout: cream Roboto Condensed text, regular weight, as typed (not uppercased), with no background, left-aligned with the copy button (right-aligned when there is no share button, so it stays on screen).
 - **Rest timer past 0:00** blinks once a second: visible, a 100 ms fade out, hidden, a 100 ms fade back. The blink is locked to the time: it is hidden from 100 ms before each change of the seconds to 300 ms after (the screen redraws every 250 ms), also when the app is reopened past 0:00.
 - **Rest timer digits** each take the width of «0», the widest Oswald digit, imitating a monospaced font: the time no longer shifts as it counts. It stays centred, the minus first.
 

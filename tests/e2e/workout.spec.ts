@@ -433,22 +433,23 @@ test('finishing a set starts its rest; past 0:00 the timer counts on below zero 
   await expect(page.getByRole('timer')).toHaveAttribute('aria-label', /отдых окончен/i);
   await expect(page.getByRole('heading', { name: /отдых/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /завершить подход/i })).toHaveCount(0);
-  // It fades in and out in its own colour, and fits the screen with the minus sign.
+  // It blinks in its own colour, and fits the screen with the minus sign.
   const timer = page.getByRole('timer');
   await expect(timer).not.toHaveCSS('animation-name', 'none');
-  await expect(timer).toHaveCSS('color', 'rgb(247, 237, 224)');
-  // Blinks once a second, fading out completely and back, each fade at most 100 ms.
+  // Blinks once a second by fading the text colour, each fade at most 100 ms. Not by opacity: iPhone Safari
+  // composites an opacity animation and did not redraw a time that changed while hidden (stuck at −00:01).
   const pulse = await timer.evaluate((el) => {
     const effect = el.getAnimations()[0].effect as KeyframeEffect;
+    const frames = effect.getKeyframes();
     return {
       duration: Number(effect.getComputedTiming().duration),
-      frames: effect.getKeyframes().map((k) => ({ offset: k.computedOffset, opacity: Number(k.opacity ?? 1) })),
+      animatesOpacity: frames.some((k) => 'opacity' in k),
+      frames: frames.map((k) => ({ offset: k.computedOffset!, value: String(k.color) })),
     };
   });
+  expect(pulse.animatesOpacity).toBe(false);
   expect(pulse.duration).toBe(1000);
-  expect(Math.min(...pulse.frames.map((f) => f.opacity))).toBe(0);
-  expect(Math.max(...pulse.frames.map((f) => f.opacity))).toBe(1);
-  const fades = pulse.frames.slice(1).filter((f, i) => f.opacity !== pulse.frames[i].opacity);
+  const fades = pulse.frames.slice(1).filter((f, i) => f.value !== pulse.frames[i].value);
   expect(fades).toHaveLength(2);
   for (const f of fades) {
     const from = pulse.frames[pulse.frames.indexOf(f) - 1];
@@ -521,12 +522,14 @@ for (const [name, gap] of [['at 0:00', 0], ['after reopening the app', 1], ['aft
       await page.reload();
     }
     await expect(timer).toHaveText(/^−00:\d\d$/);
-    // Every frame for 3 s: the text and how visible it is.
+    // Every frame for 3 s: the text, its colour's alpha, and the element's opacity.
     const samples = await timer.evaluate(async (el) => {
-      const out: { text: string; opacity: number }[] = [];
+      const out: { text: string; alpha: number; rgb: string; opacity: number }[] = [];
       const end = performance.now() + 3000;
       while (performance.now() < end) {
-        out.push({ text: el.textContent!, opacity: Number(getComputedStyle(el).opacity) });
+        const cs = getComputedStyle(el);
+        const [r, g, b, a = 1] = cs.color.match(/[\d.]+/g)!.map(Number);
+        out.push({ text: el.textContent!, alpha: a, rgb: `${r},${g},${b}`, opacity: Number(cs.opacity) });
         await new Promise((r) => requestAnimationFrame(r));
       }
       return out;
@@ -534,11 +537,14 @@ for (const [name, gap] of [['at 0:00', 0], ['after reopening the app', 1], ['aft
     const changes = samples.flatMap((s, i) => (i > 0 && s.text !== samples[i - 1].text ? [i] : []));
     expect(changes.length).toBeGreaterThanOrEqual(2);
     for (const i of changes) {
-      expect(samples[i - 1].opacity, `before ${samples[i].text}`).toBeLessThan(0.05);
-      expect(samples[i].opacity, `at ${samples[i].text}`).toBeLessThan(0.05);
+      expect(samples[i - 1].alpha, `before ${samples[i].text}`).toBeLessThan(0.05);
+      expect(samples[i].alpha, `at ${samples[i].text}`).toBeLessThan(0.05);
     }
-    // And it is shown in between.
-    expect(Math.max(...samples.map((s) => s.opacity))).toBe(1);
+    // Shown in between, in cream; the element itself never fades.
+    const shown = samples.filter((s) => s.alpha === 1);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(new Set(shown.map((s) => s.rgb))).toEqual(new Set(['247,237,224']));
+    expect(samples.every((s) => s.opacity === 1)).toBe(true);
   });
 }
 
@@ -766,6 +772,7 @@ test.describe('sharing the summary', () => {
     expect(Math.abs(g.right - 18)).toBeLessThan(1);
     expect(Math.abs(g.bottom - 18)).toBeLessThan(1);
     expect(g.width).toBe(g.height);
+    expect(g.width).toBe(42); // 30% smaller than the 60 px it was
     // It stays in the corner while the results scroll, and never covers the last of them.
     await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
     const lastBottom = await page.locator('main .actions-bottom').evaluate((el) => el.getBoundingClientRect().bottom);
@@ -773,14 +780,14 @@ test.describe('sharing the summary', () => {
     expect(lastBottom).toBeLessThanOrEqual(buttonTop);
   });
 
-  test('a cream copy icon left of the share icon, level with it, 12 px apart', async ({ page }) => {
+  test('a cream copy icon left of the share icon, level with it, 8 px apart', async ({ page }) => {
     await openSummary(page, 'share');
     await expect(copyButton(page).locator('svg[data-icon="copy"]')).toHaveCount(1);
     await expect(copyButton(page)).toHaveText('');
     await expect(copyButton(page)).toHaveCSS('background-color', 'rgb(247, 237, 224)');
     const copy = (await copyButton(page).boundingBox())!;
     const share = (await shareButton(page).boundingBox())!;
-    expect(Math.abs(share.x - (copy.x + copy.width) - 12)).toBeLessThan(1);
+    expect(Math.abs(share.x - (copy.x + copy.width) - 8)).toBeLessThan(1);
     expect(Math.abs(share.y - copy.y)).toBeLessThan(1);
     expect(copy.width).toBe(share.width);
     expect(copy.height).toBe(share.height);

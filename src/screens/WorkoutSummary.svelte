@@ -127,9 +127,9 @@
     <!-- Bottom right corner: copy, then share (2026-11-15). The label floats above, so nothing moves. -->
     <div class="corner">
       {#if copied}<span class="copied" class:alone={!canShare} aria-hidden="true">Скопировано!</span>{/if}
-      <button type="button" aria-label="Скопировать итоги" onclick={copy}><Icon name="copy" size={34} /></button>
+      <button type="button" aria-label="Скопировать итоги" onclick={copy}><Icon name="copy" size={24} /></button>
       {#if canShare}
-        <button type="button" aria-label="Поделиться" onclick={share}><Icon name="share" size={34} /></button>
+        <button type="button" aria-label="Поделиться" onclick={share}><Icon name="share" size={24} /></button>
       {/if}
     </div>
   {/if}
@@ -177,7 +177,7 @@
 
   /* Room at the end, so the buttons never cover the last of the content. */
   .summary {
-    --share-size: 60px;
+    --share-size: 42px; /* 30% smaller than the 60 px of 2026-11-08 */
     --share-bottom: max(var(--gutter), var(--safe-bottom));
     padding-bottom: calc(var(--share-bottom) + var(--share-size) + 16px);
   }
@@ -189,7 +189,7 @@
     bottom: var(--share-bottom);
     z-index: 2;
     display: flex;
-    gap: 12px;
+    gap: 8px;
   }
 
   /* Above the buttons from the copy button's left edge, out of the layout. */
@@ -217,7 +217,7 @@
     height: var(--share-size);
     padding: 0;
     border: 0;
-    border-radius: var(--radius-m);
+    border-radius: var(--radius-s);
     background: var(--c-cream);
     color: var(--c-ink);
     cursor: pointer;
