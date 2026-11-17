@@ -772,7 +772,7 @@ test.describe('sharing the summary', () => {
     expect(Math.abs(g.right - 18)).toBeLessThan(1);
     expect(Math.abs(g.bottom - 18)).toBeLessThan(1);
     expect(g.width).toBe(g.height);
-    expect(g.width).toBe(42); // 30% smaller than the 60 px it was
+    expect(g.width).toBe(54); // 10% smaller than the 60 px it was
     // It stays in the corner while the results scroll, and never covers the last of them.
     await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
     const lastBottom = await page.locator('main .actions-bottom').evaluate((el) => el.getBoundingClientRect().bottom);
@@ -780,14 +780,14 @@ test.describe('sharing the summary', () => {
     expect(lastBottom).toBeLessThanOrEqual(buttonTop);
   });
 
-  test('a cream copy icon left of the share icon, level with it, 8 px apart', async ({ page }) => {
+  test('a cream copy icon left of the share icon, level with it, 11 px apart', async ({ page }) => {
     await openSummary(page, 'share');
     await expect(copyButton(page).locator('svg[data-icon="copy"]')).toHaveCount(1);
     await expect(copyButton(page)).toHaveText('');
     await expect(copyButton(page)).toHaveCSS('background-color', 'rgb(247, 237, 224)');
     const copy = (await copyButton(page).boundingBox())!;
     const share = (await shareButton(page).boundingBox())!;
-    expect(Math.abs(share.x - (copy.x + copy.width) - 8)).toBeLessThan(1);
+    expect(Math.abs(share.x - (copy.x + copy.width) - 11)).toBeLessThan(1);
     expect(Math.abs(share.y - copy.y)).toBeLessThan(1);
     expect(copy.width).toBe(share.width);
     expect(copy.height).toBe(share.height);
