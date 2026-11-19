@@ -32,8 +32,8 @@
   <header class="top">
     <h1 class="brand display" use:fitText={{ max: 120 }}>Атлетика</h1>
     <p class="date display">
-      <span>{today.date}</span>
       <span>{today.weekday}</span>
+      <span>{today.date}</span>
     </p>
   </header>
 

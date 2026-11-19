@@ -123,20 +123,33 @@ async function fakeSafeArea(page: Page, top: number, bottom: number) {
   );
 }
 
-test('the date reads the day, month and year first and the weekday under it', async ({ page }) => {
+test('the date reads the weekday in full first and the day, month and year under it', async ({ page }) => {
   const lines = page.locator('p.date span');
   await expect(lines).toHaveCount(2);
-  await expect(lines.nth(0)).toHaveText(/^\d{1,2} [А-Я]{3} \d{4}$/);
-  await expect(lines.nth(1)).toHaveText(/^(ПН|ВТ|СР|ЧТ|ПТ|СБ|ВС)$/);
+  await expect(lines.nth(0)).toHaveText(/^(ПОНЕДЕЛЬНИК|ВТОРНИК|СРЕДА|ЧЕТВЕРГ|ПЯТНИЦА|СУББОТА|ВОСКРЕСЕНЬЕ)$/);
+  await expect(lines.nth(1)).toHaveText(/^\d{1,2} [А-Я]{3} \d{4}$/);
   const [first, second] = await lines.evaluateAll((spans) => spans.map((s) => s.getBoundingClientRect().top));
   expect(second).toBeGreaterThan(first);
 });
 
-/** Shows 8 Nov 2026, «8 НОЯ 2026»: its first line then has a flat-topped «Н» to measure. */
+test('the longest weekday, «Понедельник», fits beside the brand on one line', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.clock.setFixedTime(new Date(2026, 10, 2, 12));
+  await page.reload();
+  await expect(page.locator('p.date span').first()).toHaveText('ПОНЕДЕЛЬНИК');
+  await page.evaluate(() => document.fonts.ready);
+  const g = await homeGeometry(page);
+  expect(g.date.right).toBeLessThanOrEqual(g.viewport.width - GUTTER + 1);
+  expect(g.brand.right).toBeLessThanOrEqual(g.date.left);
+  const brand = await page.locator('h1.brand').evaluate((h) => h.scrollWidth - h.clientWidth);
+  expect(brand).toBeLessThanOrEqual(1);
+});
+
+/** Shows Sunday 8 Nov 2026: its first line, «ВОСКРЕСЕНЬЕ», then has a flat-topped «Н» to measure. */
 async function fixDate(page: Page) {
   await page.clock.setFixedTime(new Date(2026, 10, 8, 12));
   await page.reload();
-  await expect(page.locator('p.date span').first()).toHaveText('8 НОЯ 2026');
+  await expect(page.locator('p.date span').first()).toHaveText('ВОСКРЕСЕНЬЕ');
   await homeLoaded(page);
   await page.evaluate(() => document.fonts.ready);
 }
@@ -147,7 +160,8 @@ test('the brand and date capitals start one gutter below the top edge, level wit
   const date = (await inkTop(page, 'p.date', 'Н'))!;
   expect(Math.abs(brand - GUTTER)).toBeLessThanOrEqual(1);
   expect(Math.abs(date - GUTTER)).toBeLessThanOrEqual(1);
-  expect(Math.abs(brand - date)).toBeLessThanOrEqual(1);
+  // Up to 3 device pixels apart: 1.14 px at Pixel 7's 2.625×, each line rounded on its own.
+  expect(Math.abs(brand - date)).toBeLessThanOrEqual(1.2);
 });
 
 test('on a tall screen the brand keeps to the top and everything else to the bottom', async ({ page }) => {
@@ -250,7 +264,8 @@ test('the illustration never shows under the brand and is cut on a straight line
   await style.evaluate((el) => (el as Element).remove());
 
   // Nothing of the header (no fade) draws below its box: hiding it leaves those pixels as they are.
-  const strip = { x: 0, y: Math.ceil(cut), width: g.viewport.width, height: 24 };
+  // From the row after the cut: the cut's own row is anti-aliased when the header ends mid-pixel.
+  const strip = { x: 0, y: Math.ceil(cut) + 1, width: g.viewport.width, height: 24 };
   const withHeader = await capture(page, strip);
   await page.locator('header.top').evaluate((el) => (el.style.visibility = 'hidden'));
   const withoutHeader = await capture(page, strip);

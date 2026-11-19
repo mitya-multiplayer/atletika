@@ -26,10 +26,10 @@ export function setsSummary(sets: readonly SetConfig[]): string {
   return sets.map((set) => set.reps).join(' · ');
 }
 
-const WEEKDAYS = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
+const WEEKDAYS = ['ВОСКРЕСЕНЬЕ', 'ПОНЕДЕЛЬНИК', 'ВТОРНИК', 'СРЕДА', 'ЧЕТВЕРГ', 'ПЯТНИЦА', 'СУББОТА'];
 const MONTHS = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
 
-/** { weekday: "ВТ", date: "3 НОЯ 2026" } */
+/** { weekday: "ВТОРНИК", date: "3 НОЯ 2026" } */
 export function formatToday(date: Date): { weekday: string; date: string } {
   return {
     weekday: WEEKDAYS[date.getDay()],

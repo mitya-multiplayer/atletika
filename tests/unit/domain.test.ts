@@ -85,7 +85,13 @@ describe('format', () => {
   });
 
   it('formats the date in Russian', () => {
-    expect(formatToday(new Date(2026, 10, 3))).toEqual({ weekday: 'ВТ', date: '3 НОЯ 2026' });
+    expect(formatToday(new Date(2026, 10, 3))).toEqual({ weekday: 'ВТОРНИК', date: '3 НОЯ 2026' });
+  });
+
+  it('writes the weekday in full, Monday to Sunday', () => {
+    // 2 Nov 2026 is a Monday.
+    const week = Array.from({ length: 7 }, (_, i) => formatToday(new Date(2026, 10, 2 + i)).weekday);
+    expect(week).toEqual(['ПОНЕДЕЛЬНИК', 'ВТОРНИК', 'СРЕДА', 'ЧЕТВЕРГ', 'ПЯТНИЦА', 'СУББОТА', 'ВОСКРЕСЕНЬЕ']);
   });
 });
 

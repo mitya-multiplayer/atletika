@@ -2,6 +2,11 @@
 
 Decisions made after `ATLETIKA_PRODUCT_SPEC.md` was written. Where they conflict with the spec or a reference screen, this file wins.
 
+## 2026-11-19
+
+- **Home date:** the weekday comes first, written in full («ВТОРНИК»), with «3 НОЯ 2026» under it. Before, the
+  date came first and the weekday was abbreviated («ВТ»).
+
 ## 2026-11-17
 
 - **Summary buttons** (copy, share) are 10% smaller than the original 60 px: 54 px squares, 31 px icons, 11 px
