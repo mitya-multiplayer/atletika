@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 /**
  * Fills the empty app with the demo program (10 exercises, some with a description and video;
@@ -14,6 +14,8 @@ export async function loadDemo(page: Page) {
 export async function openDemoDay1(page: Page) {
   await page.goto('./#/days');
   await page.getByRole('link', { name: /день 1/i }).first().click();
+  // Its title, not just any: the Days list's «Дни» would let a test measure mid-switch.
+  await expect(page.getByRole('heading', { level: 1, name: /день 1/i })).toBeVisible();
 }
 
 /**
